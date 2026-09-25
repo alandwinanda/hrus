@@ -14,32 +14,35 @@ Helper yang sudah ada, pakai ini dan jangan bikin versi baru:
 
 | Kebutuhan | Lokasi |
 | --- | --- |
-| Base model | `app.models.base.Base` |
+| Base model + mixin | `app.models.base`: `Base`, `UUIDPrimaryKeyMixin`, `TenantMixin`, `TimestampMixin` |
+| User login | `app.api.deps.CurrentUserDep` (`user_id`, `tenant_id`, `roles`, `employee_id`) |
+| Cek role | `app.api.deps.require_roles(Role.HR_ADMIN, ...)`, `app.models.Role` |
+| Session DB + RLS | `app.api.deps.TenantSessionDep` (satu transaksi, tenant dari token) |
 | Keyset pagination | `app.core.pagination.paginate`, `app.api.pagination.PageParamsDep` |
 | Response list | `app.schemas.common.Page[T]` |
-| Tenant context (RLS) | `app.core.tenant.set_tenant_context` |
+| Audit | `app.services.audit.record_audit` |
+| Helper migrasi | `app.core.tenant`: `rls_statements`, `grant_statement` |
 | Cek paket/fitur | `app.entitlement.deps.require_feature`, `app.entitlement.features.Feature` |
 
-Kalau dependency auth (user login + tenant_id) belum ada, **berhenti dan tanya user** sebelum
-membuat versi sendiri.
+Contoh modul yang sudah mengikuti pola ini: `app/api/me.py`, `app/services/auth.py`,
+`tests/test_rls.py` (isolasi tenant), `tests/test_auth.py`.
 
 ## 1. Model (`backend/app/models/<modul>.py`)
 
-- [ ] Kolom `tenant_id` (UUID, `NOT NULL`) di setiap tabel.
+- [ ] Pakai `TenantMixin` (kolom `tenant_id` UUID `NOT NULL` + FK ke `tenant`) di setiap tabel.
 - [ ] Composite index diawali `tenant_id`, sesuai pola query (misal `(tenant_id, employee_id, start_date)`).
 - [ ] Data effective-dated (seperti `employee_job`) memakai `effdt` + `effseq`, tidak menimpa riwayat.
 - [ ] Import model di `app/models/__init__.py` supaya terbaca Alembic.
 - [ ] Migrasi baru: `cd backend && uv run alembic revision --autogenerate -m "<pesan>"`, lalu cek hasilnya.
-- [ ] Tambahkan RLS di migrasi yang sama:
+- [ ] Tambahkan GRANT dan RLS di migrasi yang sama. Tanpa GRANT, role aplikasi tidak bisa
+      mengakses tabel. Beri hak seminimal mungkin (misal tanpa DELETE kalau data cukup dinonaktifkan):
 
   ```python
-  op.execute("ALTER TABLE <tabel> ENABLE ROW LEVEL SECURITY")
-  op.execute("ALTER TABLE <tabel> FORCE ROW LEVEL SECURITY")
-  op.execute(
-      "CREATE POLICY tenant_isolation ON <tabel> "
-      "USING (tenant_id = current_setting('app.tenant_id', true)::uuid) "
-      "WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid)"
-  )
+  from app.core.tenant import grant_statement, rls_statements
+
+  op.execute(grant_statement("<tabel>", "SELECT, INSERT, UPDATE"))
+  for statement in rls_statements("<tabel>"):
+      op.execute(statement)
   ```
 
 - [ ] Jangan pernah mengedit migrasi yang sudah ter-commit. Hook akan menolak, buat migrasi baru.
@@ -54,8 +57,8 @@ membuat versi sendiri.
 ## 3. Service (`backend/app/services/<modul>.py`)
 
 - [ ] Semua logic bisnis di sini, tidak bergantung pada FastAPI.
-- [ ] Panggil `set_tenant_context(session, tenant_id)` di awal transaksi, **dan** tetap filter
-      `tenant_id` di query (RLS adalah lapis kedua, bukan satu-satunya).
+- [ ] Terima session dari `TenantSessionDep` (tenant context sudah di-set), **dan** tetap filter
+      `tenant_id` di query. RLS adalah lapis kedua, dan koneksi admin/CLI melewati RLS.
 - [ ] List memakai `paginate()`. Kolom sort NOT NULL, diakhiri primary key. Dilarang `OFFSET`.
 - [ ] List transaksi default tahun berjalan, histori lama hanya lewat filter eksplisit.
 - [ ] Pilih kolom yang dibutuhkan (tanpa `SELECT *`), pakai `selectinload`/`joinedload` (tanpa N+1).
@@ -63,12 +66,13 @@ membuat versi sendiri.
       dihitung di sini, tidak pernah oleh LLM.
 - [ ] Saldo disimpan dan di-update di transaksi yang sama, bukan dihitung ulang dari histori.
 - [ ] Proses berat (import massal, hitung ulang massal) jadi job Celery, bukan di request.
-- [ ] Perubahan data dicatat di `audit_log`.
+- [ ] Perubahan data dicatat dengan `record_audit()` di transaksi yang sama (tanpa secret).
 
 ## 4. Router (`backend/app/api/<modul>.py`)
 
 - [ ] Tipis: validasi input → panggil service → kembalikan schema. Tidak ada SQL di router.
 - [ ] Endpoint plural kebab-case sesuai SPEC (misal `/leave/requests`).
+- [ ] Pakai `CurrentUserDep` + `TenantSessionDep`, dan `require_roles(...)` sesuai tabel role di SPEC.
 - [ ] List memakai `PageParamsDep` dan return `Page[...]`.
 - [ ] Fitur AI (soft validation, ringkasan, reporting agent) wajib
       `dependencies=[Depends(require_feature(Feature.<FITUR_AI>))]`.
@@ -82,8 +86,8 @@ Setiap endpoint wajib punya test untuk:
 - [ ] Happy path.
 - [ ] Validasi input (422) dan hard rules (ditolak rules engine).
 - [ ] Otorisasi per role (karyawan, atasan, HR).
-- [ ] **Isolasi tenant:** data tenant A tidak muncul saat context tenant B (list kosong,
-      get by id → 404, update/delete ditolak).
+- [ ] **Isolasi tenant:** data tenant A tidak muncul untuk user tenant B (list kosong,
+      get by id → 404, update/delete ditolak). Pakai fixture `make_tenant` dan `make_user`.
 - [ ] Pagination: semua baris terambil tepat sekali lewat `next_cursor`.
 - [ ] Fitur AI: 403 `feature_not_enabled` saat `AI_ENABLED=false`, fitur ERP tetap jalan.
 

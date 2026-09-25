@@ -1,5 +1,8 @@
-from sqlalchemy import MetaData
-from sqlalchemy.orm import DeclarativeBase
+from datetime import datetime
+from uuid import UUID
+
+from sqlalchemy import DateTime, ForeignKey, MetaData, func, text
+from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 # Nama constraint konsisten supaya migrasi Alembic stabil.
 NAMING_CONVENTION = {
@@ -13,3 +16,24 @@ NAMING_CONVENTION = {
 
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+class UUIDPrimaryKeyMixin:
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text("gen_random_uuid()"))
+
+
+class TenantMixin:
+    """Wajib untuk semua tabel bisnis. Tabelnya juga wajib punya RLS policy di migrasi."""
+
+    @declared_attr
+    def tenant_id(cls) -> Mapped[UUID]:  # noqa: N805
+        return mapped_column(ForeignKey("tenant.id", ondelete="RESTRICT"), nullable=False)
+
+
+class TimestampMixin:
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

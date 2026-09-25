@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help env install up down logs ps test test-backend test-worker test-ai-gateway lint format migrate seed-perf openapi
+.PHONY: help env install up down logs ps test test-backend test-worker test-ai-gateway lint format migrate seed-dev create-tenant seed-perf openapi
 
 COMPOSE := docker compose
 PY_SERVICES := backend worker ai-gateway
@@ -49,8 +49,14 @@ format: ## Rapikan kode dengan Ruff (Python) dan Prettier (frontend)
 	@for s in $(PY_SERVICES); do (cd $$s && uv run ruff check --fix . && uv run ruff format .) || exit 1; done
 	cd frontend && npm run format
 
-migrate: ## Jalankan migrasi Alembic (langsung ke postgres, tidak lewat PgBouncer)
-	$(COMPOSE) exec backend-1 alembic upgrade head
+migrate: ## Migrasi Alembic + siapkan user DB aplikasi (non-superuser)
+	$(COMPOSE) exec backend-1 sh -c "alembic upgrade head && python -m app.cli create-db-user"
+
+seed-dev: ## Tenant "demo" + user HR, atasan, karyawan (password: demo-password)
+	$(COMPOSE) exec backend-1 python -m app.cli seed-dev
+
+create-tenant: ## Tenant baru. Contoh: make create-tenant SLUG=acme NAME="PT Acme" EMAIL=hr@acme.co.id
+	$(COMPOSE) exec backend-1 python -m app.cli create-tenant --slug "$(SLUG)" --name "$(NAME)" --admin-email "$(EMAIL)"
 
 seed-perf: ## Seed data uji performa 7.000 karyawan x 3 tahun (belum diimplementasi)
 	@echo "seed-perf belum diimplementasi. Lihat docs/SPEC.md bagian Performa query jangka panjang."

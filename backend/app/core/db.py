@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 
 def build_engine(url: str) -> AsyncEngine:
@@ -23,6 +23,7 @@ def build_engine(url: str) -> AsyncEngine:
 
 @lru_cache
 def get_engine() -> AsyncEngine:
+    """Engine aplikasi: user DB non-superuser, tunduk pada RLS."""
     return build_engine(get_settings().database_url)
 
 
@@ -31,7 +32,18 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(get_engine(), expire_on_commit=False)
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
-    """Dependency FastAPI: satu session per request."""
-    async with get_sessionmaker()() as session:
+async def transaction_session() -> AsyncIterator[AsyncSession]:
+    """Satu session + satu transaksi. Commit kalau sukses, rollback kalau ada exception.
+
+    Tenant context (RLS) hanya berlaku di dalam transaksi ini.
+    """
+    async with get_sessionmaker()() as session, session.begin():
         yield session
+
+
+def admin_engine(settings: Settings) -> AsyncEngine:
+    """Engine owner/superuser untuk CLI admin (bikin tenant, user DB). Melewati RLS."""
+    url = settings.migration_database_url
+    if not url:
+        raise RuntimeError("MIGRATION_DATABASE_URL wajib diisi untuk perintah admin")
+    return build_engine(url)

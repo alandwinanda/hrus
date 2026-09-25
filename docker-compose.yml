@@ -2,14 +2,22 @@
 name: hrus
 
 x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-development}
   DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-saas}
   AI_ENABLED: ${AI_ENABLED:-false}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  # Aplikasi lewat PgBouncer, migrasi langsung ke PostgreSQL.
-  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
+  # Aplikasi: user non-superuser lewat PgBouncer (tunduk RLS).
+  # Migrasi dan CLI admin: owner langsung ke PostgreSQL.
+  DATABASE_URL: postgresql+psycopg://${APP_DB_USER}:${APP_DB_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
   MIGRATION_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  APP_DB_USER: ${APP_DB_USER}
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD}
   REDIS_URL: redis://redis:6379/0
   CELERY_BROKER_URL: redis://redis:6379/1
+  JWT_SECRET: ${JWT_SECRET}
+  ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+  REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+  COOKIE_SECURE: ${COOKIE_SECURE:-true}
 
 x-backend: &backend
   build:
@@ -51,8 +59,9 @@ services:
     image: edoburu/pgbouncer:v1.25.2-p0
     environment:
       DB_HOST: postgres
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Hanya user aplikasi yang lewat PgBouncer. User ini dibuat oleh `make migrate`.
+      DB_USER: ${APP_DB_USER}
+      DB_PASSWORD: ${APP_DB_PASSWORD}
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 1000

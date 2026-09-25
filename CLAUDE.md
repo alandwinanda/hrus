@@ -12,8 +12,8 @@ AI form validation, Reporting Agent. Payroll, attendance, dan fitur lain di luar
 **Acuan utama: `docs/SPEC.md`.** Kalau ada yang tidak jelas atau bertentangan dengan file ini,
 ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
-Status: scaffold monorepo sudah ada (health check, logging, pagination, entitlement stub,
-contoh job). Belum ada fitur bisnis. Pilihan teknis scaffold: `docs/decisions/005-scaffold-monorepo.md`.
+Status: scaffold + fondasi Core API (auth JWT, role, tenant, RLS, audit_log) sudah ada. Belum ada
+modul bisnis. Keputusan teknis: `docs/decisions/005-scaffold-monorepo.md`, `006-auth-jwt-dan-db-role.md`.
 
 ## Perintah
 
@@ -21,7 +21,8 @@ contoh job). Belum ada fitur bisnis. Pilihan teknis scaffold: `docs/decisions/00
 make up / down     jalankan / hentikan semua service (http://localhost:8080)
 make test          pytest backend, worker, ai-gateway (postgres + redis dari compose)
 make lint          Ruff + ESLint + Prettier + tsc   make format   rapikan kode (Ruff + Prettier)
-make migrate       Alembic upgrade head          make openapi  generate tipe TS dari OpenAPI
+make migrate       Alembic + user DB aplikasi     make seed-dev  tenant demo (hr@demo.test)
+make openapi       generate tipe TS frontend dari OpenAPI backend
 ```
 
 Test satu service: `cd backend && uv run pytest tests/test_health.py`.
@@ -41,9 +42,9 @@ docs/          SPEC.md dan decisions/ (ADR)
 
 - Setiap service punya Dockerfile, dependency (uv, `pyproject.toml`), dan test sendiri.
 - `worker/` memakai model dan service dari `backend/`. Logic bisnis tidak boleh diduplikasi.
-- Backend: `app/{api,core,models,schemas,services,rules,jobs,entitlement}`. Helper yang sudah ada:
-  `core/pagination.py` (keyset), `core/tenant.py` (tenant context), `entitlement/deps.py`
-  (`require_feature`). Pakai ini, jangan bikin versi baru.
+- Backend: `app/{api,core,models,schemas,services,rules,jobs,entitlement}`. Pakai helper yang ada:
+  `api/deps.py` (`CurrentUserDep`, `TenantSessionDep`, `require_roles`), `core/pagination.py`,
+  `core/tenant.py` (RLS + helper migrasi), `services/audit.py`, `entitlement/deps.py`.
 
 ## Konvensi Python
 
@@ -77,8 +78,8 @@ Penamaan:
 
 ## Aturan arsitektur
 
-1. **Multi-tenant.** Semua tabel bisnis punya `tenant_id NOT NULL` + RLS policy PostgreSQL.
-   Tenant context diset per transaksi (`SET LOCAL`), bukan per koneksi, supaya aman di PgBouncer.
+1. **Multi-tenant.** Semua tabel bisnis punya `tenant_id NOT NULL` + GRANT + RLS policy. Aplikasi
+   konek sebagai user non-superuser (`APP_DB_USER`), tenant context per transaksi dari token JWT.
    Setiap fitur baru wajib punya test kebocoran antar tenant.
 2. **Satu codebase.** SaaS dan dedicated memakai kode yang sama, bedanya hanya
    `DEPLOYMENT_MODE=saas|dedicated` dan konfigurasi deploy. Dilarang cabang kode per klien.

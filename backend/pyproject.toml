@@ -5,11 +5,13 @@ description = "Core API AI-Native HRIS"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
+    "argon2-cffi>=25.1.0",
     "celery[redis]>=5.6",
     "fastapi>=0.141.1",
     "psycopg[binary]>=3.2",
     "pydantic>=2",
     "pydantic-settings>=2.15.0",
+    "pyjwt>=2.15.0",
     "redis>=5",
     "sqlalchemy[asyncio]>=2",
     "structlog>=26.1.0",

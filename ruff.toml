@@ -19,11 +19,13 @@ select = [
 
 [lint.per-file-ignores]
 "**/tests/**" = ["S101", "S105", "S106"]
+# conftest harus mengisi env var sebelum import app.
+"**/tests/conftest.py" = ["E402"]
 # Hook Claude Code memang menjalankan git dan formatter.
 ".claude/hooks/**" = ["S603", "S607"]
 
 [lint.isort]
-known-first-party = ["app", "worker", "ai_gateway"]
+known-first-party = ["app", "worker", "ai_gateway", "tests"]
 # Folder migrasi backend/alembic bukan package lokal.
 known-third-party = ["alembic"]
 

@@ -4,13 +4,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-from app.api import health
+from app.api import auth, health, me
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestContextMiddleware
 from app.core.pagination import InvalidCursorError
 from app.core.redis import get_redis
+from app.core.security import ensure_auth_configured
 
 logger = get_logger(__name__)
 
@@ -18,6 +19,7 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    ensure_auth_configured(settings)
     logger.info(
         "startup",
         deployment_mode=settings.deployment_mode,
@@ -44,6 +46,8 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(InvalidCursorError, invalid_cursor_handler)
     app.include_router(health.router)
+    app.include_router(auth.router)
+    app.include_router(me.router)
     return app
 
 
