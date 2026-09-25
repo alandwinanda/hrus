@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: Hygiene (whitespace, yaml, secret)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.8.17"
+      # Ruff, ESLint, dan Prettier sudah dijalankan di job masing-masing.
+      - run: uvx pre-commit run --all-files --show-diff-on-failure
+        env:
+          SKIP: ruff-check,ruff-format,eslint,prettier
+
+  python:
+    name: Python (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, worker, ai-gateway]
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg16-trixie
+        env:
+          POSTGRES_USER: hrus
+          POSTGRES_PASSWORD: hrus_dev_password
+          POSTGRES_DB: hrus_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hrus -d hrus_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://hrus:hrus_dev_password@localhost:5432/hrus_test
+      TEST_REDIS_URL: redis://localhost:6379/15
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.8.17"
+          enable-cache: true
+          cache-dependency-glob: ${{ matrix.service }}/uv.lock
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+
+  smoke:
+    name: Docker Compose smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: [python, frontend]
+    steps:
+      - uses: actions/checkout@v7
+      - run: cp .env.example .env
+      - name: Build dan jalankan semua service
+        run: docker compose up -d --build --wait --wait-timeout 180
+      - name: Migrasi
+        run: docker compose exec -T backend-1 alembic upgrade head
+      - name: Cek endpoint lewat nginx
+        run: |
+          curl -fsS http://localhost:8080/api/health
+          curl -fsS http://localhost:8080/api/ready
+          curl -fsS http://localhost:8080/ | grep -q "<title>AI-Native HRIS</title>"
+      - name: Log service kalau gagal
+        if: failure()
+        run: docker compose logs --tail=200
+      - if: always()
+        run: docker compose down -v
