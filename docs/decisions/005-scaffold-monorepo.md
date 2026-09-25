@@ -1,4 +1,4 @@
-# ADR 0001: Pilihan teknis scaffold monorepo
+# ADR 005: Pilihan teknis scaffold monorepo
 
 - Status: diterima
 - Tanggal: 2026-09-25

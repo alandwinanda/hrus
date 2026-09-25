@@ -13,14 +13,14 @@ AI form validation, Reporting Agent. Payroll, attendance, dan fitur lain di luar
 ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
 Status: scaffold monorepo sudah ada (health check, logging, pagination, entitlement stub,
-contoh job). Belum ada fitur bisnis. Pilihan teknis scaffold: `docs/decisions/0001-scaffold-monorepo.md`.
+contoh job). Belum ada fitur bisnis. Pilihan teknis scaffold: `docs/decisions/005-scaffold-monorepo.md`.
 
 ## Perintah
 
 ```
 make up / down     jalankan / hentikan semua service (http://localhost:8080)
 make test          pytest backend, worker, ai-gateway (postgres + redis dari compose)
-make lint          Ruff + ESLint + tsc          make format   rapikan kode Python
+make lint          Ruff + ESLint + Prettier + tsc   make format   rapikan kode (Ruff + Prettier)
 make migrate       Alembic upgrade head          make openapi  generate tipe TS dari OpenAPI
 ```
 
@@ -139,6 +139,8 @@ Penamaan:
 - Setiap endpoint wajib ada test: happy path, validasi, otorisasi per role, isolasi tenant.
 - Jangan commit secret. Pakai `.env` (di-gitignore) dan `.env.example` sebagai template.
 - Cek `docs/decisions/` sebelum mengubah arsitektur. Perubahan arsitektur ditulis sebagai ADR baru
-  di sana dulu.
-- Spec-first: skema Pydantic dan test dulu, baru implementasi.
+  di sana dulu (salin `000-template.md`).
+- Modul baru wajib lewat skill `/new-module`: model → schema → service → router → test → MCP tool.
+- Hook di `.claude/` otomatis memformat file (Ruff, Prettier) dan menolak edit `.env` serta migrasi
+  Alembic yang sudah ter-commit. Jangan diakali, buat migrasi baru.
 - Diff yang menyentuh otorisasi, RLS, atau SQL Guard wajib ditandai jelas untuk review manual.

@@ -41,12 +41,13 @@ test-worker:
 test-ai-gateway:
 	cd ai-gateway && uv run pytest
 
-lint: ## Ruff (Python) + ESLint dan typecheck (frontend)
+lint: ## Ruff (Python) + ESLint, Prettier, dan typecheck (frontend)
 	@for s in $(PY_SERVICES); do (cd $$s && uv run ruff check . && uv run ruff format --check .) || exit 1; done
-	cd frontend && npm run lint && npm run typecheck
+	cd frontend && npm run lint && npm run format:check && npm run typecheck
 
-format: ## Rapikan kode Python dengan Ruff
+format: ## Rapikan kode dengan Ruff (Python) dan Prettier (frontend)
 	@for s in $(PY_SERVICES); do (cd $$s && uv run ruff check --fix . && uv run ruff format .) || exit 1; done
+	cd frontend && npm run format
 
 migrate: ## Jalankan migrasi Alembic (langsung ke postgres, tidak lewat PgBouncer)
 	$(COMPOSE) exec backend-1 alembic upgrade head

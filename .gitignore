@@ -25,3 +25,6 @@ dist/
 .vscode/*
 !.vscode/extensions.json
 .DS_Store
+
+# Setting Claude Code pribadi
+.claude/settings.local.json

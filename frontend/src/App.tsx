@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchHealth, type HealthResponse } from './api/health'
 
 type HealthState =
-  | { kind: 'loading' }
-  | { kind: 'ok'; data: HealthResponse }
-  | { kind: 'error'; message: string }
+  { kind: 'loading' } | { kind: 'ok'; data: HealthResponse } | { kind: 'error'; message: string }
 
 function App() {
   const [health, setHealth] = useState<HealthState>({ kind: 'loading' })
