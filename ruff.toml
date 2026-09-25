@@ -1,0 +1,29 @@
+# Config Ruff bersama untuk semua service Python (backend, worker, ai-gateway).
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+    "E",     # pycodestyle
+    "W",
+    "F",     # pyflakes
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "B",     # bugbear
+    "SIM",   # simplify
+    "ASYNC", # async
+    "S",     # bandit (security)
+    "RUF",
+]
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106"]
+
+[lint.isort]
+known-first-party = ["app", "worker", "ai_gateway"]
+# Folder migrasi backend/alembic bukan package lokal.
+known-third-party = ["alembic"]
+
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]

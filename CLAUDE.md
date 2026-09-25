@@ -12,7 +12,19 @@ AI form validation, Reporting Agent. Payroll, attendance, dan fitur lain di luar
 **Acuan utama: `docs/SPEC.md`.** Kalau ada yang tidak jelas atau bertentangan dengan file ini,
 ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
-Status: project baru, belum ada kode.
+Status: scaffold monorepo sudah ada (health check, logging, pagination, entitlement stub,
+contoh job). Belum ada fitur bisnis. Pilihan teknis scaffold: `docs/decisions/0001-scaffold-monorepo.md`.
+
+## Perintah
+
+```
+make up / down     jalankan / hentikan semua service (http://localhost:8080)
+make test          pytest backend, worker, ai-gateway (postgres + redis dari compose)
+make lint          Ruff + ESLint + tsc          make format   rapikan kode Python
+make migrate       Alembic upgrade head          make openapi  generate tipe TS dari OpenAPI
+```
+
+Test satu service: `cd backend && uv run pytest tests/test_health.py`.
 
 ## Struktur monorepo
 
@@ -27,8 +39,11 @@ infra/         Docker Compose, Nginx, script deploy dan backup (k3s nanti)
 docs/          SPEC.md dan decisions/ (ADR)
 ```
 
-- Setiap service punya Dockerfile, dependency, dan test sendiri.
+- Setiap service punya Dockerfile, dependency (uv, `pyproject.toml`), dan test sendiri.
 - `worker/` memakai model dan service dari `backend/`. Logic bisnis tidak boleh diduplikasi.
+- Backend: `app/{api,core,models,schemas,services,rules,jobs,entitlement}`. Helper yang sudah ada:
+  `core/pagination.py` (keyset), `core/tenant.py` (tenant context), `entitlement/deps.py`
+  (`require_feature`). Pakai ini, jangan bikin versi baru.
 
 ## Konvensi Python
 
