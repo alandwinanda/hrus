@@ -91,6 +91,8 @@ class LeaveBalanceRead(BaseModel):
     adjusted: int
     used: int
     pending: int
+    expired: int
+    carry_over_expires_on: date | None
     available: int
 
 

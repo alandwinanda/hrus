@@ -2,20 +2,21 @@
 pengajuan, approval, dan pembatalan. Tidak pernah dihitung ulang dari histori pengajuan.
 
 Baris saldo dibuat saat pertama dibutuhkan, dengan jatah dari policy per awal tahun (atau per
-tanggal masuk kalau masuk di tahun itu). Top-up saat ulang tahun kerja dan carry-over
-dikerjakan job accrual (menyusul).
+tanggal masuk kalau masuk di tahun itu). Top-up saat ulang tahun kerja, carry-over, dan hangus
+dikerjakan job harian (app/services/leave_accrual.py, ADR 010).
 """
 
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, RuleViolationError
 from app.core.security import AccessClaims
 from app.models import Employee, LeaveBalance, LeavePolicy, LeaveType
+from app.rules import leave as rules
 from app.schemas.leave import BalanceAdjustment, LeaveBalanceRead, LeaveBalanceSummary
 from app.services import employees
 from app.services.audit import record_audit
@@ -23,33 +24,29 @@ from app.services.leave_config import get_leave_type
 from app.services.tenant import tenant_today
 
 
-def service_months(hire_date: date, as_of: date) -> int:
-    months = (as_of.year - hire_date.year) * 12 + (as_of.month - hire_date.month)
-    if as_of.day < hire_date.day:
-        months -= 1
-    return max(months, 0)
+async def load_policies(
+    session: AsyncSession, tenant_id: UUID, leave_type_id: UUID | None = None
+) -> list[LeavePolicy]:
+    stmt = select(LeavePolicy).where(LeavePolicy.tenant_id == tenant_id)
+    if leave_type_id is not None:
+        stmt = stmt.where(LeavePolicy.leave_type_id == leave_type_id)
+    return list(await session.scalars(stmt))
 
 
 async def entitlement_for(
     session: AsyncSession, tenant_id: UUID, employee: Employee, leave_type_id: UUID, year: int
 ) -> int:
-    """Jatah dari policy paling spesifik: grade yang cocok dulu, lalu masa kerja tertinggi."""
+    """Jatah awal tahun (atau per tanggal masuk). Kenaikan jatah di tengah tahun (ulang tahun
+    kerja, promosi, policy naik) diterapkan job accrual harian."""
     reference = max(date(year, 1, 1), employee.hire_date)
     job = await employees.job_as_of(session, tenant_id, employee.id, reference)
-    grade = job.grade.upper() if job else None
-    months = service_months(employee.hire_date, reference)
-    annual_days = await session.scalar(
-        select(LeavePolicy.annual_days)
-        .where(
-            LeavePolicy.tenant_id == tenant_id,
-            LeavePolicy.leave_type_id == leave_type_id,
-            LeavePolicy.min_service_months <= months,
-            or_(LeavePolicy.grade == grade, LeavePolicy.grade.is_(None)),
-        )
-        .order_by(LeavePolicy.grade.is_(None), LeavePolicy.min_service_months.desc())
-        .limit(1)
+    policy = rules.pick_policy(
+        await load_policies(session, tenant_id, leave_type_id),
+        leave_type_id=leave_type_id,
+        grade=job.grade if job else None,
+        months=rules.service_months(employee.hire_date, reference),
     )
-    return annual_days or 0
+    return policy.annual_days if policy else 0
 
 
 async def get_balance(
@@ -122,6 +119,8 @@ def to_read(balance: LeaveBalance, leave_type: LeaveType) -> LeaveBalanceRead:
         adjusted=balance.adjusted,
         used=balance.used,
         pending=balance.pending,
+        expired=balance.expired,
+        carry_over_expires_on=balance.carry_over_expires_on,
         available=balance.available,
     )
 

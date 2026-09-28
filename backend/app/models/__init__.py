@@ -11,6 +11,16 @@ from app.models.core_hr import (
     JobAction,
     OrgUnit,
 )
+from app.models.jobs import (
+    ChunkStatus,
+    JobLogLevel,
+    JobRun,
+    JobRunChunk,
+    JobRunLog,
+    JobRunStatus,
+    JobSchedule,
+    JobTrigger,
+)
 from app.models.leave import (
     ApprovalStatus,
     HolidayCalendar,
@@ -29,6 +39,7 @@ __all__ = [
     "ApprovalStatus",
     "AuditLog",
     "Base",
+    "ChunkStatus",
     "Employee",
     "EmployeeJob",
     "EmploymentStatus",
@@ -36,6 +47,13 @@ __all__ = [
     "HolidayCalendar",
     "HolidayKind",
     "JobAction",
+    "JobLogLevel",
+    "JobRun",
+    "JobRunChunk",
+    "JobRunLog",
+    "JobRunStatus",
+    "JobSchedule",
+    "JobTrigger",
     "LeaveApproval",
     "LeaveBalance",
     "LeavePolicy",

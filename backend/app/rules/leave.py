@@ -5,8 +5,11 @@ Setiap cek mengembalikan Violation atau None, supaya validate bisa menampilkan s
 sekaligus, sedangkan submit menolak di error pertama.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import Protocol
+from uuid import UUID
 
 from app.core.errors import RuleViolationError
 from app.models import EmploymentStatus, LeaveRequestStatus
@@ -17,6 +20,46 @@ from app.models.leave import MAX_REQUEST_SPAN_DAYS
 class Violation:
     code: str
     message: str
+
+
+class PolicyLike(Protocol):
+    leave_type_id: UUID
+    grade: str | None
+    min_service_months: int
+    annual_days: int
+    max_carry_over_days: int
+    carry_over_expiry_months: int
+
+
+def service_months(hire_date: date, as_of: date) -> int:
+    """Masa kerja dalam bulan penuh per tanggal as_of."""
+    months = (as_of.year - hire_date.year) * 12 + (as_of.month - hire_date.month)
+    if as_of.day < hire_date.day:
+        months -= 1
+    return max(months, 0)
+
+
+def pick_policy[P: PolicyLike](
+    policies: Iterable[P], *, leave_type_id: UUID, grade: str | None, months: int
+) -> P | None:
+    """Policy paling spesifik: grade yang cocok dulu (lalu policy umum), masa kerja minimum
+    tertinggi yang sudah terpenuhi."""
+    grade = grade.upper() if grade else None
+    candidates = [
+        p
+        for p in policies
+        if p.leave_type_id == leave_type_id
+        and p.min_service_months <= months
+        and (p.grade is None or p.grade == grade)
+    ]
+    return min(candidates, key=lambda p: (p.grade is None, -p.min_service_months), default=None)
+
+
+def carry_over_expiry(year: int, expiry_months: int) -> date | None:
+    """Tanggal carry-over dari tahun sebelumnya mulai hangus. 0 bulan = tidak hangus."""
+    if expiry_months <= 0:
+        return None
+    return date(year + expiry_months // 12, expiry_months % 12 + 1, 1)
 
 
 def working_days(start: date, end: date, holidays: set[date]) -> int:

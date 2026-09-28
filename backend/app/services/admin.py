@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import hash_password
 from app.core.tenant import APP_DB_ROLE, set_tenant_context
 from app.models import AppUser, Role, Tenant, UserRole
+from app.services import jobs
 from app.services.audit import record_audit
 
 MIN_PASSWORD_LENGTH = 8
@@ -31,6 +32,7 @@ async def create_tenant(
     tenant = Tenant(slug=slug, name=name.strip(), timezone=timezone)
     session.add(tenant)
     await session.flush()
+    await jobs.ensure_default_schedules(session, tenant.id, timezone)
     return tenant
 
 

@@ -102,6 +102,21 @@ services:
     stop_grace_period: 60s
     restart: unless-stopped
 
+  # Membaca job_schedule dan mengirim task ke worker. Aman dijalankan 2 replika (advisory lock).
+  scheduler:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    command: ["python", "-m", "app.jobs.scheduler"]
+    environment:
+      <<: *app-env
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   # Internal saja, tidak dibuka lewat nginx. Nanti dipanggil orchestrator.
   ai-gateway:
     build:

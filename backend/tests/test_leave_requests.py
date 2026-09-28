@@ -48,6 +48,8 @@ async def test_balance_initialized_from_policy(client: AsyncClient, org: LeaveOr
         "adjusted": 0,
         "used": 0,
         "pending": 0,
+        "expired": 0,
+        "carry_over_expires_on": None,
         "available": 12,
     }
     # Tipe cuti tanpa saldo (sakit) tidak muncul di daftar saldo.

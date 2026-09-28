@@ -21,6 +21,8 @@ Spec tool yang sudah ditentukan per modul (diisi lewat skill `/new-module`). Acu
 | `cancel_leave_request` | `POST /leave/requests/{id}/cancel` | Semua | Ya |
 | `get_team_calendar` | `GET /leave/team-calendar` | Atasan, HR | Tidak |
 | `decide_leave_request` | `POST /leave/requests/{id}/decision` | Atasan, HR | Ya |
+| `run_job` | `POST /jobs/runs` + header `Idempotency-Key` | HR | Ya (tawarkan dry-run dulu) |
+| `get_job_status` | `GET /jobs/runs/{id}` | HR | Tidak |
 
 Endpoint Core HR lain (`/org-units`, `POST/PATCH /employees`, `/employees/{id}/jobs`) sengaja
 belum dijadikan MCP tool di MVP: perubahan data master tetap lewat form HR. Sama untuk konfigurasi
@@ -30,3 +32,6 @@ cuti (`/leave/types`, `/leave/policies`, `/leave/holidays`) dan koreksi saldo
 Catatan Leave: jumlah hari dan saldo selalu diambil dari respons API, tidak pernah dihitung LLM.
 Sebelum `submit_leave_request`, orchestrator memanggil `validate_leave_request` dan menampilkan
 hasilnya (termasuk warning) untuk dikonfirmasi user. Idempotency-Key dibuat sekali per konfirmasi.
+
+Catatan job: untuk accrual cuti, orchestrator menjalankan `run_job` dengan `dry_run=true`,
+merangkum `output.counts` dari `get_job_status`, lalu minta konfirmasi user sebelum run sungguhan.

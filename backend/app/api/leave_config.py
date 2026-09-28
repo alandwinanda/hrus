@@ -89,7 +89,8 @@ async def update_policy(
     session: TenantSessionDep,
     _: HrAdmin,
 ) -> LeavePolicyRead:
-    """Berlaku untuk saldo yang dibuat setelah ini. Saldo yang sudah ada tidak berubah."""
+    """Saldo baru langsung memakai nilai ini. Saldo yang sudah ada ikut naik lewat job accrual
+    harian, tapi tidak pernah diturunkan."""
     return await service.update_policy(session, user, policy_id, body)
 
 

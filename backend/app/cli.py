@@ -27,7 +27,7 @@ from app.models import AppUser, Employee, LeavePolicy, LeaveType, OrgUnit, Role
 from app.schemas.employee import EmployeeCreate, JobFields
 from app.schemas.leave import HolidayCreate, LeavePolicyCreate, LeaveRequestInput, LeaveTypeCreate
 from app.schemas.org_unit import OrgUnitCreate
-from app.services import admin, employees, leave_config, leave_requests, org_units
+from app.services import admin, employees, jobs, leave_config, leave_requests, org_units
 from app.services.tenant import tenant_today
 
 DEV_TENANT_SLUG = "demo"
@@ -272,6 +272,7 @@ async def seed_dev(settings: Settings, _: argparse.Namespace) -> None:
                 await admin.create_user(
                     session, tenant_id=tenant.id, email=email, password=DEV_PASSWORD, roles=roles
                 )
+        await jobs.ensure_default_schedules(session, tenant.id, tenant.timezone)
         users = await _seed_dev_core_hr(session, tenant.id)
         await _seed_dev_leave(session, users)
 
@@ -294,6 +295,7 @@ async def seed_perf(settings: Settings, args: argparse.Namespace) -> None:
             tenant = await admin.create_tenant(
                 session, slug=PERF_TENANT_SLUG, name="PT Uji Performa"
             )
+        await jobs.ensure_default_schedules(session, tenant.id, tenant.timezone)
         has_data = await session.scalar(
             select(func.count()).select_from(Employee).where(Employee.tenant_id == tenant.id)
         )

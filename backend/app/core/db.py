@@ -7,13 +7,20 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings, get_settings
 
 
-def build_engine(url: str) -> AsyncEngine:
+def build_engine(url: str, *, pooled: bool = True) -> AsyncEngine:
+    """pooled=False untuk task worker: tiap task memakai event loop baru (asyncio.run), jadi
+    koneksi tidak boleh disimpan di pool. Pooling tetap dilakukan PgBouncer."""
     # prepare_threshold=None: prepared statement dimatikan supaya aman di PgBouncer
     # transaction mode (koneksi server bisa berganti di tiap transaksi).
+    if not pooled:
+        return create_async_engine(
+            url, poolclass=NullPool, connect_args={"prepare_threshold": None}
+        )
     return create_async_engine(
         url,
         pool_pre_ping=True,

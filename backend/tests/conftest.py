@@ -7,7 +7,7 @@ Jalankan `docker compose up -d postgres redis` dulu, atau set TEST_* env var di 
 """
 
 import os
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Iterator
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -47,12 +47,18 @@ from app.core.config import get_settings
 from app.core.db import build_engine, get_sessionmaker
 from app.core.redis import get_redis
 from app.core.security import AccessClaims, create_access_token
+from app.jobs.dispatch import get_dispatch
 from app.main import app as fastapi_app
 from app.models import AppUser, Role, Tenant
 from app.services import admin
+from tests.job_helpers import InlineDispatch
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 BUSINESS_TABLES = (
+    "job_run_log",
+    "job_run_chunk",
+    "job_run",
+    "job_schedule",
     "leave_approval",
     "leave_request",
     "leave_balance",
@@ -154,6 +160,15 @@ def make_user(admin_sessionmaker: async_sessionmaker[AsyncSession]) -> MakeUser:
             return user
 
     return _make
+
+
+@pytest.fixture
+def dispatcher() -> Iterator[InlineDispatch]:
+    """Task job dicatat dan dijalankan langsung lewat `await dispatcher.drain()`."""
+    inline = InlineDispatch()
+    fastapi_app.dependency_overrides[get_dispatch] = lambda: inline
+    yield inline
+    fastapi_app.dependency_overrides.pop(get_dispatch, None)
 
 
 type AuthHeaders = Callable[..., dict[str, str]]

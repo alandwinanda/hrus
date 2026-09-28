@@ -134,6 +134,27 @@ jobs:
             | python3 -c "import json, sys; b = json.load(sys.stdin)['items'][0]; assert b['leave_type_code'] == 'CUTI_TAHUNAN' and b['entitled'] == 12, b; print(b)"
           curl -fsS "http://localhost:8080/api/leave/requests?scope=approvals" -H "Authorization: Bearer $atasan" \
             | python3 -c "import json, sys; page = json.load(sys.stdin); assert len(page['items']) == 1, page; print(page['items'][0]['employee_name'], 'menunggu approval')"
+      - name: Dry-run job accrual lewat worker
+        run: |
+          hr=$(curl -fsS -X POST http://localhost:8080/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"tenant_slug":"demo","email":"hr@demo.test","password":"demo-password"}' \
+            | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])")
+          run_id=$(curl -fsS -X POST http://localhost:8080/api/jobs/runs \
+            -H "Authorization: Bearer $hr" -H "Content-Type: application/json" \
+            -d '{"job_code":"leave_accrual","dry_run":true}' \
+            | python3 -c "import json, sys; print(json.load(sys.stdin)['id'])")
+          for _ in $(seq 1 30); do
+            status=$(curl -fsS "http://localhost:8080/api/jobs/runs/$run_id" -H "Authorization: Bearer $hr" \
+              | python3 -c "import json, sys; print(json.load(sys.stdin)['status'])")
+            echo "status: $status"
+            case "$status" in
+              success) exit 0 ;;
+              queued|running) sleep 2 ;;
+              *) exit 1 ;;
+            esac
+          done
+          exit 1
       - name: Log service kalau gagal
         if: failure()
         run: docker compose logs --tail=200

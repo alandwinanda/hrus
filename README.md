@@ -33,6 +33,7 @@ Untuk dev lokal di luar Docker dan hook pre-commit: `make install`. Daftar lengk
 | nginx | 8080 | `/api/*` ke backend (2 replika, `least_conn`), `/` ke frontend |
 | backend-1, backend-2 | internal | Core API FastAPI, `/health` dan `/ready` |
 | worker | - | Celery, antrian `high`, `default`, `low` |
+| scheduler | - | Baca `job_schedule`, antre job terjadwal (accrual cuti harian 01:00) |
 | ai-gateway | internal | `POST /v1/chat`, aktif hanya jika `AI_ENABLED=true` |
 | frontend | internal | Vite dev server |
 | postgres | 5432 | PostgreSQL 16 + pgvector, database `hrus` dan `hrus_test` |
@@ -47,6 +48,10 @@ curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/
 curl http://localhost:8080/api/me -H "Authorization: Bearer <access_token>"
 curl http://localhost:8080/api/employees -H "Authorization: Bearer <access_token>"
 curl http://localhost:8080/api/leave/balances -H "Authorization: Bearer <access_token>"
+# Dry-run accrual cuti (HR), lalu cek statusnya
+curl -X POST http://localhost:8080/api/jobs/runs -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" -d '{"job_code":"leave_accrual","dry_run":true}'
+curl http://localhost:8080/api/jobs/runs/<id> -H "Authorization: Bearer <access_token>"
 ```
 
 Tenant baru untuk klien: `make create-tenant SLUG=acme NAME="PT Acme" EMAIL=hr@acme.co.id`.

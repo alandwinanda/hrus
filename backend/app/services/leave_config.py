@@ -179,7 +179,8 @@ async def create_policy(
 async def update_policy(
     session: AsyncSession, actor: AccessClaims, policy_id: UUID, data: LeavePolicyUpdate
 ) -> LeavePolicyRead:
-    """Berlaku untuk saldo yang dibuat setelah ini. Saldo yang sudah ada tidak berubah."""
+    """Saldo baru langsung memakai nilai ini. Saldo yang sudah ada ikut naik lewat job accrual
+    harian, tapi tidak pernah diturunkan."""
     policy = await _get_policy(session, actor.tenant_id, policy_id)
     before = LeavePolicyRead.model_validate(policy)
     for field in data.model_fields_set:

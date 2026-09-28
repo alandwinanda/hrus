@@ -298,7 +298,8 @@ export interface paths {
         head?: never;
         /**
          * Update Policy
-         * @description Berlaku untuk saldo yang dibuat setelah ini. Saldo yang sudah ada tidak berubah.
+         * @description Saldo baru langsung memakai nilai ini. Saldo yang sudah ada ikut naik lewat job accrual
+         *     harian, tapi tidak pernah diturunkan.
          */
         patch: operations["update_policy_leave_policies__policy_id__patch"];
         trace?: never;
@@ -515,6 +516,179 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jobs/definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Job Definitions
+         * @description Job yang tersedia beserta skema parameternya.
+         */
+        get: operations["list_job_definitions_jobs_definitions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Job Runs */
+        get: operations["list_job_runs_jobs_runs_get"];
+        put?: never;
+        /**
+         * Run Job
+         * @description MCP tool: run_job (wajib konfirmasi user). Hanya mencatat run lalu antre ke worker.
+         *     Pakai dry_run=true untuk melihat hasilnya dulu tanpa mengubah data.
+         */
+        post: operations["run_job_jobs_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job Run
+         * @description MCP tool: get_job_status. Status, progress (chunk), dan ringkasan hasil.
+         */
+        get: operations["get_job_run_jobs_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/runs/{run_id}/chunks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Job Run Chunks
+         * @description Detail per chunk, termasuk daftar perubahan (untuk review hasil dry-run).
+         */
+        get: operations["list_job_run_chunks_jobs_runs__run_id__chunks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/runs/{run_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Job Run Logs */
+        get: operations["list_job_run_logs_jobs_runs__run_id__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Job Run */
+        post: operations["cancel_job_run_jobs_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/runs/{run_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Job Run
+         * @description Ulangi chunk yang gagal saja (restart dari titik gagal).
+         */
+        post: operations["retry_job_run_jobs_runs__run_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Job Schedules */
+        get: operations["list_job_schedules_jobs_schedules_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/schedules/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Job Schedule
+         * @description Ubah jam (cron), zona waktu, parameter, atau nonaktifkan jadwal tanpa deploy.
+         */
+        patch: operations["update_job_schedule_jobs_schedules__schedule_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -553,6 +727,11 @@ export interface components {
             /** Available After */
             available_after: number;
         };
+        /**
+         * ChunkStatus
+         * @enum {string}
+         */
+        ChunkStatus: "pending" | "success" | "failed" | "cancelled";
         /** CurrentJob */
         CurrentJob: {
             /**
@@ -753,6 +932,23 @@ export interface components {
          * @enum {string}
          */
         JobAction: "hire" | "rehire" | "transfer" | "promotion" | "data_change" | "termination";
+        /** JobDefinitionRead */
+        JobDefinitionRead: {
+            /** Code */
+            code: string;
+            /** Description */
+            description: string;
+            /** Queue */
+            queue: string;
+            /** Supports Dry Run */
+            supports_dry_run: boolean;
+            /** Default Cron */
+            default_cron: string | null;
+            /** Params Schema */
+            params_schema: {
+                [key: string]: unknown;
+            };
+        };
         /** JobFields */
         JobFields: {
             /** Job Title */
@@ -769,6 +965,165 @@ export interface components {
             /** @default permanent */
             employment_type: components["schemas"]["EmploymentType"];
         };
+        /**
+         * JobLogLevel
+         * @enum {string}
+         */
+        JobLogLevel: "info" | "warning" | "error";
+        /** JobRunChunkRead */
+        JobRunChunkRead: {
+            /** Chunk No */
+            chunk_no: number;
+            status: components["schemas"]["ChunkStatus"];
+            /** Attempts */
+            attempts: number;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            };
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+        };
+        /** JobRunCreate */
+        JobRunCreate: {
+            /** Job Code */
+            job_code: string;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+        };
+        /** JobRunLogRead */
+        JobRunLogRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            level: components["schemas"]["JobLogLevel"];
+            /** Chunk No */
+            chunk_no: number | null;
+            /** Message */
+            message: string;
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** JobRunRead */
+        JobRunRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Code */
+            job_code: string;
+            status: components["schemas"]["JobRunStatus"];
+            /** Dry Run */
+            dry_run: boolean;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            trigger: components["schemas"]["JobTrigger"];
+            /** Schedule Id */
+            schedule_id: string | null;
+            /** Requested By User Id */
+            requested_by_user_id: string | null;
+            /** Chunks Total */
+            chunks_total: number;
+            /** Chunks Done */
+            chunks_done: number;
+            /** Chunks Failed */
+            chunks_failed: number;
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            };
+            /** Error */
+            error: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * JobRunStatus
+         * @enum {string}
+         */
+        JobRunStatus: "queued" | "running" | "success" | "partial" | "failed" | "cancelled";
+        /** JobScheduleRead */
+        JobScheduleRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Code */
+            job_code: string;
+            /** Cron */
+            cron: string;
+            /** Timezone */
+            timezone: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Next Run At
+             * Format: date-time
+             */
+            next_run_at: string;
+            /** Last Run At */
+            last_run_at: string | null;
+        };
+        /** JobScheduleUpdate */
+        JobScheduleUpdate: {
+            /** Cron */
+            cron?: string | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * JobTrigger
+         * @enum {string}
+         */
+        JobTrigger: "user" | "schedule";
         /** LeaveApprovalRead */
         LeaveApprovalRead: {
             /** Level */
@@ -804,6 +1159,10 @@ export interface components {
             used: number;
             /** Pending */
             pending: number;
+            /** Expired */
+            expired: number;
+            /** Carry Over Expires On */
+            carry_over_expires_on: string | null;
             /** Available */
             available: number;
         };
@@ -1200,6 +1559,34 @@ export interface components {
         Page_HolidayRead_: {
             /** Items */
             items: components["schemas"]["HolidayRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[JobRunChunkRead] */
+        Page_JobRunChunkRead_: {
+            /** Items */
+            items: components["schemas"]["JobRunChunkRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[JobRunLogRead] */
+        Page_JobRunLogRead_: {
+            /** Items */
+            items: components["schemas"]["JobRunLogRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[JobRunRead] */
+        Page_JobRunRead_: {
+            /** Items */
+            items: components["schemas"]["JobRunRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[JobScheduleRead] */
+        Page_JobScheduleRead_: {
+            /** Items */
+            items: components["schemas"]["JobScheduleRead"][];
             /** Next Cursor */
             next_cursor?: string | null;
         };
@@ -2474,6 +2861,324 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_TeamCalendarItem_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_job_definitions_jobs_definitions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDefinitionRead"][];
+                };
+            };
+        };
+    };
+    list_job_runs_jobs_runs_get: {
+        parameters: {
+            query?: {
+                job_code?: string | null;
+                status?: components["schemas"]["JobRunStatus"] | null;
+                year?: number | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_JobRunRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_job_jobs_runs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_run_jobs_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_job_run_chunks_jobs_runs__run_id__chunks_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_JobRunChunkRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_job_run_logs_jobs_runs__run_id__logs_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_JobRunLogRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_job_run_jobs_runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_job_run_jobs_runs__run_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_job_schedules_jobs_schedules_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_JobScheduleRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_job_schedule_jobs_schedules__schedule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobScheduleRead"];
                 };
             };
             /** @description Validation Error */

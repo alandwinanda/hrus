@@ -127,7 +127,8 @@ class HolidayCalendar(UUIDPrimaryKeyMixin, TenantMixin, Base):
 
 class LeaveBalance(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     """Saldo per karyawan per tipe per tahun. available = entitled + carried_over + adjusted
-    - used - pending. pending = hari yang sedang diajukan (belum final)."""
+    - used - pending - expired. pending = hari yang sedang diajukan (belum final), expired =
+    sisa carry-over yang hangus (carry-over dianggap dipakai lebih dulu)."""
 
     __tablename__ = "leave_balance"
     __table_args__ = (
@@ -140,6 +141,7 @@ class LeaveBalance(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
             unique=True,
         ),
         CheckConstraint("used >= 0 AND pending >= 0", name="usage_positive"),
+        CheckConstraint("expired >= 0 AND expired <= carried_over", name="expired_valid"),
         ForeignKeyConstraint(
             ["tenant_id", "employee_id"],
             ["employee.tenant_id", "employee.id"],
@@ -160,10 +162,22 @@ class LeaveBalance(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     adjusted: Mapped[int] = mapped_column(SmallInteger, server_default="0")
     used: Mapped[int] = mapped_column(SmallInteger, server_default="0")
     pending: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    expired: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    # Diisi job accrual (sekali per tahun) dan job hangus carry-over, supaya job idempotent.
+    carry_over_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    carry_over_expires_on: Mapped[date | None]
+    carry_over_expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property
     def available(self) -> int:
-        return self.entitled + self.carried_over + self.adjusted - self.used - self.pending
+        return (
+            self.entitled
+            + self.carried_over
+            + self.adjusted
+            - self.used
+            - self.pending
+            - self.expired
+        )
 
 
 class LeaveRequest(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):

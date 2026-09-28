@@ -25,3 +25,10 @@ def test_example_job_runs_eagerly() -> None:
 
     assert result.successful()
     assert result.get() == {"total_items": 1200, "chunks": 3}
+
+
+def test_job_tasks_registered_by_shared_names() -> None:
+    from app.jobs.dispatch import TASK_RUN_CHUNK, TASK_START_RUN
+
+    assert TASK_START_RUN in celery_app.tasks
+    assert TASK_RUN_CHUNK in celery_app.tasks

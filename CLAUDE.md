@@ -12,9 +12,9 @@ AI form validation, Reporting Agent. Payroll, attendance, dan fitur lain di luar
 **Acuan utama: `docs/SPEC.md`.** Kalau ada yang tidak jelas atau bertentangan dengan file ini,
 ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
-Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log), Core HR (org_unit, employee,
-employee_job effective-dated), dan Leave bagian 1 (tipe, policy, libur, saldo, pengajuan, approval,
-kalender) sudah ada. Berikutnya: framework `job_run` + accrual cuti. Keputusan teknis: ADR 005–008.
+Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log), Core HR, Leave (saldo,
+pengajuan, approval, kalender, accrual, carry-over), dan framework job (`job_run`, chunk, scheduler)
+sudah ada. Berikutnya: entitlement paket. Keputusan teknis: ADR 005–010. Job baru: ADR 009.
 
 ## Perintah
 
@@ -134,7 +134,8 @@ Penamaan:
   kebenaran status job, bukan broker.
 - Job wajib chunked (misal 500 karyawan per chunk), idempotent, commit per chunk, dan bisa
   restart dari chunk yang gagal.
-- Advisory lock per tenant + jenis job. Accrual dan import wajib mendukung dry-run.
+- Satu run aktif per tenant + jenis job (unique index parsial `job_run`, ADR 009). Accrual dan
+  import wajib mendukung dry-run. Job baru = `JobDefinition` di `app/jobs/definitions.py`.
 
 ## Umum
 
