@@ -1,7 +1,7 @@
 """Data uji performa (SPEC: 7.000 karyawan x 3 tahun). Hanya untuk dev/staging.
 
 Dibuat dengan generate_series di PostgreSQL supaya cepat. Hasilnya deterministik (setseed).
-Saat ini mencakup Core HR. Data cuti ditambahkan saat modul Leave dibuat.
+Mencakup Core HR dan Leave (sekitar 10 pengajuan per karyawan per tahun).
 """
 
 from dataclasses import dataclass
@@ -10,7 +10,16 @@ from uuid import UUID
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Employee, EmployeeJob, OrgUnit
+from app.models import (
+    Employee,
+    EmployeeJob,
+    LeaveApproval,
+    LeaveBalance,
+    LeavePolicy,
+    LeaveRequest,
+    LeaveType,
+    OrgUnit,
+)
 
 DIVISIONS = 10
 DEPARTMENTS_PER_DIVISION = 5
@@ -25,7 +34,10 @@ class PerfSeedResult:
 
 
 async def reset_core_hr(session: AsyncSession, tenant_id: UUID) -> None:
-    """Hapus data Core HR tenant uji. Butuh koneksi owner (role aplikasi tidak punya DELETE)."""
+    """Hapus data Core HR dan Leave tenant uji. Butuh koneksi owner (role aplikasi tidak punya
+    DELETE)."""
+    for model in (LeaveApproval, LeaveRequest, LeaveBalance, LeavePolicy, LeaveType):
+        await session.execute(delete(model).where(model.tenant_id == tenant_id))
     await session.execute(delete(EmployeeJob).where(EmployeeJob.tenant_id == tenant_id))
     await session.execute(
         OrgUnit.__table__.update()
@@ -161,4 +173,168 @@ async def seed_core_hr(
         org_units=await count(OrgUnit),
         employees=await count(Employee),
         jobs=await count(EmployeeJob),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LeaveSeedResult:
+    requests: int
+    approvals: int
+    balances: int
+
+
+LEAVE_SLOTS_PER_YEAR = 10  # jarak antar slot 35 hari, jadi pengajuan satu karyawan tidak overlap
+
+
+async def seed_leave(session: AsyncSession, tenant_id: UUID, *, years: int = 3) -> LeaveSeedResult:
+    """Pengajuan cuti tahun lalu sampai tahun berjalan: yang sudah lewat sebagian besar disetujui,
+    yang akan datang masih menunggu. Saldo tahunan disesuaikan dengan pengajuan yang ada."""
+    params = {"t": tenant_id, "years": years, "slots": LEAVE_SLOTS_PER_YEAR}
+    await session.execute(text("SELECT setseed(0.24)"))
+    await session.execute(
+        text(
+            """
+            INSERT INTO leave_type (tenant_id, code, name, requires_balance, is_paid,
+                                    min_notice_days, allow_backdated, approval_levels, is_active)
+            VALUES (:t, 'CUTI_TAHUNAN', 'Cuti Tahunan', true, true, 3, false, 1, true),
+                   (:t, 'SAKIT', 'Sakit', false, true, 0, true, 1, true)
+            """
+        ),
+        params,
+    )
+    await session.execute(
+        text(
+            """
+            INSERT INTO leave_policy (tenant_id, leave_type_id, min_service_months, annual_days,
+                                      max_carry_over_days, carry_over_expiry_months)
+            SELECT :t, id, 12, 12, 6, 3 FROM leave_type WHERE tenant_id = :t
+              AND code = 'CUTI_TAHUNAN'
+            """
+        ),
+        params,
+    )
+
+    # Slot k di tahun y mulai hari ke k*35 + acak(0..20), digeser ke hari kerja, 1-3 hari.
+    await session.execute(
+        text(
+            """
+            WITH types AS (
+                SELECT (SELECT id FROM leave_type WHERE tenant_id = :t AND code = 'CUTI_TAHUNAN')
+                           AS annual,
+                       (SELECT id FROM leave_type WHERE tenant_id = :t AND code = 'SAKIT') AS sick
+            ),
+            slots AS (
+                SELECT e.id AS employee_id, e.hire_date,
+                       make_date(y, 1, 1) + k * 35 + (random() * 20)::int AS raw_start,
+                       (random() * 2)::int AS extra_days,
+                       random() AS r_type, random() AS r_status
+                FROM employee e
+                CROSS JOIN generate_series(
+                    extract(year FROM current_date)::int - :years + 1,
+                    extract(year FROM current_date)::int
+                ) y
+                CROSS JOIN generate_series(0, :slots - 1) k
+                WHERE e.tenant_id = :t
+            ),
+            shaped AS (
+                SELECT s.*,
+                       s.raw_start + CASE extract(isodow FROM s.raw_start)
+                                         WHEN 6 THEN 2 WHEN 7 THEN 1 ELSE 0 END AS start_date
+                FROM slots s
+            ),
+            ranged AS (
+                SELECT sh.*, sh.start_date + sh.extra_days AS end_date,
+                       (SELECT count(*) FROM generate_series(sh.start_date,
+                                                             sh.start_date + sh.extra_days,
+                                                             interval '1 day') d
+                        WHERE extract(isodow FROM d) < 6) AS days
+                FROM shaped sh
+                WHERE sh.start_date >= sh.hire_date
+                  AND sh.start_date <= current_date + 90
+            )
+            INSERT INTO leave_request (
+                tenant_id, employee_id, leave_type_id, start_date, end_date, days, status,
+                approval_levels, current_level, requested_by_user_id, validation,
+                decided_at, cancelled_at, created_at, updated_at
+            )
+            SELECT :t, r.employee_id,
+                   CASE WHEN r.r_type < 0.45 THEN types.annual ELSE types.sick END,
+                   r.start_date, r.end_date, r.days,
+                   CASE WHEN r.start_date > current_date THEN 'pending'
+                        WHEN r.r_status < 0.85 THEN 'approved'
+                        WHEN r.r_status < 0.92 THEN 'rejected'
+                        ELSE 'cancelled' END,
+                   1, 1, gen_random_uuid(), '{}'::jsonb,
+                   CASE WHEN r.start_date <= current_date AND r.r_status < 0.92
+                        THEN r.start_date - 3 END,
+                   CASE WHEN r.start_date <= current_date AND r.r_status >= 0.92
+                        THEN r.start_date - 2 END,
+                   r.start_date - 7, r.start_date - 7
+            FROM ranged r CROSS JOIN types
+            ORDER BY r.start_date  -- urutan fisik seperti data asli (dibuat seiring waktu)
+            """
+        ),
+        params,
+    )
+
+    # Satu level approval: atasan dari jabatan yang berlaku di tanggal mulai (NULL = HR).
+    await session.execute(
+        text(
+            """
+            INSERT INTO leave_approval (tenant_id, leave_request_id, level, approver_employee_id,
+                                        status, decided_at, created_at)
+            SELECT :t, lr.id, 1, job.supervisor_employee_id,
+                   CASE lr.status WHEN 'cancelled' THEN 'skipped' ELSE lr.status END,
+                   lr.decided_at, lr.created_at
+            FROM leave_request lr
+            LEFT JOIN LATERAL (
+                SELECT j.supervisor_employee_id FROM employee_job j
+                WHERE j.tenant_id = lr.tenant_id AND j.employee_id = lr.employee_id
+                  AND j.effdt <= lr.start_date
+                ORDER BY j.effdt DESC, j.effseq DESC LIMIT 1
+            ) job ON true
+            WHERE lr.tenant_id = :t
+            """
+        ),
+        params,
+    )
+
+    # Saldo tahunan = jatah policy, ditambah koreksi kalau pengajuan acak melebihi jatah.
+    await session.execute(
+        text(
+            """
+            INSERT INTO leave_balance (tenant_id, employee_id, leave_type_id, year, entitled,
+                                       carried_over, adjusted, used, pending)
+            SELECT :t, lr.employee_id, lr.leave_type_id, extract(year FROM lr.start_date)::int,
+                   12, 0,
+                   greatest(0, sum(lr.days) FILTER (WHERE lr.status IN ('approved', 'pending'))
+                               - 12),
+                   coalesce(sum(lr.days) FILTER (WHERE lr.status = 'approved'), 0),
+                   coalesce(sum(lr.days) FILTER (WHERE lr.status = 'pending'), 0)
+            FROM leave_request lr
+            JOIN leave_type lt ON lt.tenant_id = lr.tenant_id AND lt.id = lr.leave_type_id
+            WHERE lr.tenant_id = :t AND lt.requires_balance
+            GROUP BY lr.employee_id, lr.leave_type_id, extract(year FROM lr.start_date)
+            """
+        ),
+        params,
+    )
+
+    for table in ("leave_type", "leave_policy", "leave_request", "leave_approval", "leave_balance"):
+        await session.execute(text(f"ANALYZE {table}"))
+
+    async def count(
+        model: type[LeaveRequest] | type[LeaveApproval] | type[LeaveBalance],
+    ) -> int:
+        return int(
+            await session.scalar(
+                select(func.count()).select_from(model).where(model.tenant_id == tenant_id)
+            )
+            or 0
+        )
+
+    return LeaveSeedResult(
+        requests=await count(LeaveRequest),
+        approvals=await count(LeaveApproval),
+        balances=await count(LeaveBalance),
     )

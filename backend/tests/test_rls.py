@@ -23,6 +23,29 @@ async def test_app_db_user_cannot_bypass_rls(session: AsyncSession) -> None:
     assert tuple(row) == (False, False)
 
 
+async def test_every_tenant_table_has_forced_rls(session: AsyncSession) -> None:
+    """Jaring pengaman: tabel baru dengan tenant_id yang lupa diberi RLS langsung ketahuan."""
+    rows = await session.execute(
+        text(
+            """
+            SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
+                   EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid) AS has_policy
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id'
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT a.attisdropped
+            ORDER BY c.relname
+            """
+        )
+    )
+    tables = {
+        row.relname: (row.relrowsecurity, row.relforcerowsecurity, row.has_policy) for row in rows
+    }
+
+    assert "leave_request" in tables
+    assert {name: flags for name, flags in tables.items() if flags != (True, True, True)} == {}
+
+
 async def test_tenant_only_sees_own_rows_without_where(
     session: AsyncSession, make_tenant: MakeTenant, make_user: MakeUser
 ) -> None:

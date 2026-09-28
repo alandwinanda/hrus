@@ -53,6 +53,12 @@ from app.services import admin
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 BUSINESS_TABLES = (
+    "leave_approval",
+    "leave_request",
+    "leave_balance",
+    "leave_policy",
+    "leave_type",
+    "holiday_calendar",
     "audit_log",
     "refresh_token",
     "user_role",

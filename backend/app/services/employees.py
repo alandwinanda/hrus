@@ -71,6 +71,50 @@ def _current_job_select(as_of: date) -> Select[Any]:
     )
 
 
+async def job_as_of(
+    session: AsyncSession, tenant_id: UUID, employee_id: UUID, as_of: date
+) -> EmployeeJob | None:
+    """Baris riwayat jabatan yang berlaku untuk satu karyawan per tanggal as_of."""
+    return await session.scalar(
+        select(EmployeeJob)
+        .where(
+            EmployeeJob.tenant_id == tenant_id,
+            EmployeeJob.employee_id == employee_id,
+            EmployeeJob.effdt <= as_of,
+        )
+        .order_by(EmployeeJob.effdt.desc(), EmployeeJob.effseq.desc())
+        .limit(1)
+    )
+
+
+def employees_as_of_query(
+    tenant_id: UUID,
+    as_of: date,
+    *,
+    supervisor_id: UUID | None = None,
+    org_unit_id: UUID | None = None,
+) -> Select[Any]:
+    """ID karyawan aktif per as_of, opsional difilter atasan langsung atau unit.
+
+    Dengan filter, kandidat diambil dulu dari index riwayat jabatan (pernah punya atasan/unit
+    itu), baru dicek jabatan yang berlaku. Tanpa ini, jabatan semua karyawan tenant dievaluasi.
+    """
+    stmt = _current_job_select(as_of).where(Employee.tenant_id == tenant_id)
+    job = stmt.selected_columns
+    stmt = stmt.where(job.job_employment_status == EmploymentStatus.ACTIVE)
+    candidates = select(EmployeeJob.employee_id).where(EmployeeJob.tenant_id == tenant_id)
+    if supervisor_id is not None:
+        stmt = stmt.where(job.job_supervisor_employee_id == supervisor_id)
+        candidates = candidates.where(EmployeeJob.supervisor_employee_id == supervisor_id)
+    if org_unit_id is not None:
+        stmt = stmt.where(job.job_org_unit_id == org_unit_id)
+        candidates = candidates.where(EmployeeJob.org_unit_id == org_unit_id)
+    if supervisor_id is not None or org_unit_id is not None:
+        stmt = stmt.where(Employee.id.in_(candidates))
+    subquery = stmt.subquery()
+    return select(subquery.c.id)
+
+
 def _to_read(row: Any) -> EmployeeRead:
     data = dict(row)
     job = {name: data.pop(f"job_{name}") for name in _JOB_FIELDS}

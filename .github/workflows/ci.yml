@@ -120,6 +120,20 @@ jobs:
             | python3 -c "import json, sys; me = json.load(sys.stdin); assert 'hr_admin' in me['roles'], me; print(me)"
           curl -fsS http://localhost:8080/api/employees -H "Authorization: Bearer $token" \
             | python3 -c "import json, sys; page = json.load(sys.stdin); assert len(page['items']) == 3, page; print(len(page['items']), 'karyawan')"
+      - name: Saldo cuti karyawan dan inbox approval atasan
+        run: |
+          login() {
+            curl -fsS -X POST http://localhost:8080/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d "{\"tenant_slug\":\"demo\",\"email\":\"$1\",\"password\":\"demo-password\"}" \
+              | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])"
+          }
+          karyawan=$(login karyawan@demo.test)
+          atasan=$(login atasan@demo.test)
+          curl -fsS http://localhost:8080/api/leave/balances -H "Authorization: Bearer $karyawan" \
+            | python3 -c "import json, sys; b = json.load(sys.stdin)['items'][0]; assert b['leave_type_code'] == 'CUTI_TAHUNAN' and b['entitled'] == 12, b; print(b)"
+          curl -fsS "http://localhost:8080/api/leave/requests?scope=approvals" -H "Authorization: Bearer $atasan" \
+            | python3 -c "import json, sys; page = json.load(sys.stdin); assert len(page['items']) == 1, page; print(page['items'][0]['employee_name'], 'menunggu approval')"
       - name: Log service kalau gagal
         if: failure()
         run: docker compose logs --tail=200

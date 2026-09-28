@@ -12,20 +12,23 @@ import asyncio
 import getpass
 import sys
 from collections.abc import Awaitable, Callable
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings, get_settings
 from app.core.db import admin_engine
+from app.core.errors import AppError
 from app.core.security import AccessClaims
 from app.jobs import perf_seed
-from app.models import AppUser, Employee, OrgUnit, Role
+from app.models import AppUser, Employee, LeavePolicy, LeaveType, OrgUnit, Role
 from app.schemas.employee import EmployeeCreate, JobFields
+from app.schemas.leave import HolidayCreate, LeavePolicyCreate, LeaveRequestInput, LeaveTypeCreate
 from app.schemas.org_unit import OrgUnitCreate
-from app.services import admin, employees, org_units
+from app.services import admin, employees, leave_config, leave_requests, org_units
+from app.services.tenant import tenant_today
 
 DEV_TENANT_SLUG = "demo"
 DEV_PASSWORD = "demo-password"  # noqa: S105 - hanya untuk data dev, ditolak di production
@@ -47,6 +50,26 @@ DEV_EMPLOYEES = (
     ("D-003", "Budi Santoso", "karyawan@demo.test", "ENG", "Software Engineer", "G3", "D-002"),
 )
 DEV_HIRE_DATE = date(2024, 1, 2)
+DEV_LEAVE_TYPES = (
+    LeaveTypeCreate(code="CUTI_TAHUNAN", name="Cuti Tahunan", min_notice_days=3),
+    LeaveTypeCreate(code="SAKIT", name="Sakit", requires_balance=False, allow_backdated=True),
+    LeaveTypeCreate(
+        code="MENIKAH",
+        name="Cuti Menikah",
+        requires_balance=False,
+        min_notice_days=14,
+        max_days_per_request=3,
+    ),
+)
+# Hari libur bertanggal tetap. Libur keagamaan (Idulfitri, Nyepi, dst.) diinput HR sesuai SKB.
+DEV_FIXED_HOLIDAYS = (
+    (1, 1, "Tahun Baru Masehi"),
+    (5, 1, "Hari Buruh Internasional"),
+    (6, 1, "Hari Lahir Pancasila"),
+    (8, 17, "Hari Kemerdekaan RI"),
+    (12, 25, "Hari Raya Natal"),
+)
+DEV_LEAVE_KEY = "seed-dev-demo-leave"
 
 
 async def _in_admin_tx(
@@ -112,7 +135,7 @@ async def create_user(settings: Settings, args: argparse.Namespace) -> None:
     await _in_admin_tx(settings, action)
 
 
-async def _seed_dev_core_hr(session: AsyncSession, tenant_id: UUID) -> None:
+async def _seed_dev_core_hr(session: AsyncSession, tenant_id: UUID) -> dict[str, AppUser]:
     """Unit organisasi + karyawan demo, lalu tiap akun demo ditautkan ke karyawannya."""
     users = {
         user.email: user
@@ -163,6 +186,73 @@ async def _seed_dev_core_hr(session: AsyncSession, tenant_id: UUID) -> None:
             )
             numbers[number] = created_emp.id
         users[email].employee_id = numbers[number]
+    return users
+
+
+def _claims(user: AppUser, *roles: Role) -> AccessClaims:
+    return AccessClaims(
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        roles=frozenset(roles),
+        employee_id=user.employee_id,
+    )
+
+
+async def _seed_dev_leave(session: AsyncSession, users: dict[str, AppUser]) -> None:
+    """Tipe cuti, policy 12 hari (masa kerja 12 bulan), hari libur tetap tahun ini dan depan,
+    plus satu pengajuan karyawan yang menunggu approval atasan."""
+    hr = _claims(users["hr@demo.test"], Role.HR_ADMIN)
+    tenant_id = hr.tenant_id
+    types = {
+        t.code: t.id
+        for t in await session.scalars(select(LeaveType).where(LeaveType.tenant_id == tenant_id))
+    }
+    for leave_type in DEV_LEAVE_TYPES:
+        if leave_type.code not in types:
+            types[leave_type.code] = (
+                await leave_config.create_leave_type(session, hr, leave_type)
+            ).id
+    has_policy = await session.scalar(select(exists().where(LeavePolicy.tenant_id == tenant_id)))
+    if not has_policy:
+        await leave_config.create_policy(
+            session,
+            hr,
+            LeavePolicyCreate(
+                leave_type_id=types["CUTI_TAHUNAN"],
+                min_service_months=12,
+                annual_days=12,
+                max_carry_over_days=6,
+            ),
+        )
+
+    today = await tenant_today(session, tenant_id)
+    years = (today.year, today.year + 1)
+    existing = await leave_config.holidays_between(
+        session, tenant_id, date(years[0], 1, 1), date(years[-1], 12, 31)
+    )
+    for year in years:
+        for month, day, name in DEV_FIXED_HOLIDAYS:
+            if date(year, month, day) not in existing:
+                await leave_config.create_holiday(
+                    session, hr, HolidayCreate(holiday_date=date(year, month, day), name=name)
+                )
+
+    start = today + timedelta(days=14)
+    start += timedelta(days=(7 - start.weekday()) % 7)  # Senin
+    try:
+        await leave_requests.submit(
+            session,
+            _claims(users["karyawan@demo.test"], Role.EMPLOYEE),
+            LeaveRequestInput(
+                leave_type_id=types["CUTI_TAHUNAN"],
+                start_date=start,
+                end_date=start + timedelta(days=2),
+                reason="Liburan keluarga",
+            ),
+            idempotency_key=DEV_LEAVE_KEY,
+        )
+    except AppError as exc:  # misal saldo sudah terpakai dari percobaan manual
+        print(f"Pengajuan cuti demo dilewati: {exc.message}")
 
 
 async def seed_dev(settings: Settings, _: argparse.Namespace) -> None:
@@ -182,7 +272,8 @@ async def seed_dev(settings: Settings, _: argparse.Namespace) -> None:
                 await admin.create_user(
                     session, tenant_id=tenant.id, email=email, password=DEV_PASSWORD, roles=roles
                 )
-        await _seed_dev_core_hr(session, tenant.id)
+        users = await _seed_dev_core_hr(session, tenant.id)
+        await _seed_dev_leave(session, users)
 
     await _in_admin_tx(settings, action)
     print(f"Tenant dev '{DEV_TENANT_SLUG}' siap. Password semua user: {DEV_PASSWORD}")
@@ -214,9 +305,11 @@ async def seed_perf(settings: Settings, args: argparse.Namespace) -> None:
         result = await perf_seed.seed_core_hr(
             session, tenant.id, employees=args.employees, years=args.years
         )
+        leave = await perf_seed.seed_leave(session, tenant.id, years=args.years)
         print(
             f"Tenant '{PERF_TENANT_SLUG}' ({tenant.id}): {result.org_units} unit, "
-            f"{result.employees} karyawan, {result.jobs} baris riwayat jabatan."
+            f"{result.employees} karyawan, {result.jobs} baris riwayat jabatan, "
+            f"{leave.requests} pengajuan cuti, {leave.balances} saldo."
         )
 
     await _in_admin_tx(settings, action)

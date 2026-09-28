@@ -16,8 +16,9 @@ make up        # build dan jalankan semua service, .env dibuat dari .env.example
                # buka http://localhost:8080
 make migrate   # migrasi Alembic + user DB aplikasi (non-superuser, tunduk RLS)
 make seed-dev  # tenant "demo": hr@demo.test, atasan@demo.test, karyawan@demo.test
-               # password semua: demo-password, lengkap dengan unit organisasi dan karyawan
-make seed-perf # tenant "perf": 7.000 karyawan x 3 tahun riwayat jabatan (uji performa)
+               # password semua: demo-password, lengkap dengan unit organisasi, karyawan,
+               # tipe cuti, hari libur, dan satu pengajuan cuti yang menunggu approval atasan
+make seed-perf # tenant "perf": 7.000 karyawan x 3 tahun riwayat jabatan dan cuti (uji performa)
 make test      # pytest backend, worker, ai-gateway (pakai postgres + redis dari compose)
 make lint      # Ruff + ESLint + typecheck
 make down      # hentikan semua service
@@ -45,6 +46,7 @@ curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/
   -d '{"tenant_slug":"demo","email":"hr@demo.test","password":"demo-password"}'
 curl http://localhost:8080/api/me -H "Authorization: Bearer <access_token>"
 curl http://localhost:8080/api/employees -H "Authorization: Bearer <access_token>"
+curl http://localhost:8080/api/leave/balances -H "Authorization: Bearer <access_token>"
 ```
 
 Tenant baru untuk klien: `make create-tenant SLUG=acme NAME="PT Acme" EMAIL=hr@acme.co.id`.

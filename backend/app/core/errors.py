@@ -24,6 +24,13 @@ class NotFoundError(AppError):
     code = "not_found"
 
 
+class ForbiddenError(AppError):
+    """User boleh melihat data ini, tapi tidak boleh melakukan aksinya."""
+
+    status_code = 403
+    code = "forbidden"
+
+
 class ConflictError(AppError):
     status_code = 409
     code = "conflict"

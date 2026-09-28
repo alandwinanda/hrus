@@ -11,17 +11,37 @@ from app.models.core_hr import (
     JobAction,
     OrgUnit,
 )
+from app.models.leave import (
+    ApprovalStatus,
+    HolidayCalendar,
+    HolidayKind,
+    LeaveApproval,
+    LeaveBalance,
+    LeavePolicy,
+    LeaveRequest,
+    LeaveRequestStatus,
+    LeaveType,
+)
 from app.models.tenant import Tenant
 
 __all__ = [
     "AppUser",
+    "ApprovalStatus",
     "AuditLog",
     "Base",
     "Employee",
     "EmployeeJob",
     "EmploymentStatus",
     "EmploymentType",
+    "HolidayCalendar",
+    "HolidayKind",
     "JobAction",
+    "LeaveApproval",
+    "LeaveBalance",
+    "LeavePolicy",
+    "LeaveRequest",
+    "LeaveRequestStatus",
+    "LeaveType",
     "OrgUnit",
     "RefreshToken",
     "Role",

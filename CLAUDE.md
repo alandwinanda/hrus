@@ -12,8 +12,9 @@ AI form validation, Reporting Agent. Payroll, attendance, dan fitur lain di luar
 **Acuan utama: `docs/SPEC.md`.** Kalau ada yang tidak jelas atau bertentangan dengan file ini,
 ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
-Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log) dan modul Core HR (org_unit,
-employee, employee_job effective-dated) sudah ada. Berikutnya: Leave. Keputusan teknis: ADR 005–007.
+Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log), Core HR (org_unit, employee,
+employee_job effective-dated), dan Leave bagian 1 (tipe, policy, libur, saldo, pengajuan, approval,
+kalender) sudah ada. Berikutnya: framework `job_run` + accrual cuti. Keputusan teknis: ADR 005–008.
 
 ## Perintah
 
