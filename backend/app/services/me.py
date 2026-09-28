@@ -3,11 +3,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings
+from app.entitlement.service import ai_status
 from app.models import AppUser, Tenant, UserRole
 from app.schemas.auth import MeResponse, TenantSummary
 
 
-async def get_profile(session: AsyncSession, user_id: UUID) -> MeResponse | None:
+async def get_profile(
+    session: AsyncSession, user_id: UUID, settings: Settings
+) -> MeResponse | None:
     row = (
         await session.execute(
             select(
@@ -26,10 +30,12 @@ async def get_profile(session: AsyncSession, user_id: UUID) -> MeResponse | None
         return None
 
     roles = await session.scalars(select(UserRole.role).where(UserRole.app_user_id == user_id))
+    status = await ai_status(session, row.tenant_id, settings)
     return MeResponse(
         id=row.id,
         email=row.email,
         roles=sorted(roles),
         employee_id=row.employee_id,
         tenant=TenantSummary(id=row.tenant_id, slug=row.slug, name=row.name),
+        ai_features=sorted(status.active_features),
     )

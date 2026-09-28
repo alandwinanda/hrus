@@ -1,6 +1,6 @@
 # ADR 004: AI sebagai add-on opsional lewat AI Gateway, default DeepSeek
 
-- Status: diterima
+- Status: diterima, diganti sebagian oleh ADR 011 (poin 3 dan 5: API key milik tenant, tanpa kredit)
 - Tanggal: 2026-09-25
 
 ## Konteks

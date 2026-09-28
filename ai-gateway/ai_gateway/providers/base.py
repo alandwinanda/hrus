@@ -11,6 +11,10 @@ class ProviderNotConfiguredError(Exception):
     """Provider dipilih tapi konfigurasinya belum lengkap (misal API key kosong)."""
 
 
+class ProviderNotAllowedError(Exception):
+    """URL provider dari kredensial tenant tidak ada di allowlist (cegah SSRF)."""
+
+
 class ChatProvider(Protocol):
     name: str
 

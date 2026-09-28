@@ -24,7 +24,7 @@ Helper yang sudah ada, pakai ini dan jangan bikin versi baru:
 | Error bisnis (404/409/422) | `app.core.errors`: `NotFoundError`, `ConflictError`, `RuleViolationError` |
 | Tanggal hari ini per tenant | `app.services.tenant.tenant_today` |
 | Helper migrasi | `app.core.tenant`: `rls_statements`, `grant_statement` |
-| Cek paket/fitur | `app.entitlement.deps.require_feature`, `app.entitlement.features.Feature` |
+| Cek fitur AI tenant | `app.entitlement.deps.require_feature`, `app.entitlement.features.Feature` |
 
 Contoh modul lengkap yang mengikuti pola ini: Core HR (`app/models/core_hr.py`,
 `app/services/employees.py`, `app/api/employees.py`, `tests/test_employees.py`). Lihat juga ADR 007.

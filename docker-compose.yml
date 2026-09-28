@@ -18,6 +18,9 @@ x-app-env: &app-env
   ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
   REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
   COOKIE_SECURE: ${COOKIE_SECURE:-true}
+  AI_SECRET_KEY: ${AI_SECRET_KEY:-}
+  AI_ALLOWED_BASE_URLS: ${AI_ALLOWED_BASE_URLS:-}
+  AI_GATEWAY_URL: http://ai-gateway:8100
 
 x-backend: &backend
   build:
@@ -129,6 +132,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-deepseek-flash}
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      AI_ALLOWED_BASE_URLS: ${AI_ALLOWED_BASE_URLS:-}
     restart: unless-stopped
 
   frontend:

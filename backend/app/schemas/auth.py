@@ -30,3 +30,6 @@ class MeResponse(BaseModel):
     roles: list[str]
     employee_id: UUID | None
     tenant: TenantSummary
+    # Fitur AI yang aktif untuk tenant sekarang. UI dan daftar MCP tools hanya menampilkan
+    # elemen AI yang ada di sini; backend tetap mengecek ulang di setiap endpoint AI.
+    ai_features: list[str]

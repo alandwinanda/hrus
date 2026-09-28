@@ -8,7 +8,9 @@ dan selalu memakai token JWT user.
 ## Daftar tool
 
 Spec tool yang sudah ditentukan per modul (diisi lewat skill `/new-module`). Acuan awal: tabel
-"API endpoint dan MCP tools" di `docs/SPEC.md`.
+"API endpoint dan MCP tools" di `docs/SPEC.md`. Tool AI hanya ditawarkan kalau fiturnya ada di
+`ai_features` dari `GET /me` (setting AI tenant, ADR 011). Setting AI sendiri tidak dijadikan
+tool: API key hanya boleh diisi HR lewat form.
 
 | Tool | Endpoint | Role | Konfirmasi user |
 | --- | --- | --- | --- |

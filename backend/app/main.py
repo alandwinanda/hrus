@@ -4,7 +4,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-from app.api import auth, employees, health, jobs, leave, leave_config, me, org_units
+from app.api import (
+    ai_settings,
+    auth,
+    employees,
+    health,
+    jobs,
+    leave,
+    leave_config,
+    me,
+    org_units,
+)
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.errors import AppError, app_error_handler
@@ -55,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(leave_config.router)
     app.include_router(leave.router)
     app.include_router(jobs.router)
+    app.include_router(ai_settings.router)
     return app
 
 

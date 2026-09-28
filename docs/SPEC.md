@@ -22,7 +22,7 @@ Asumsi target pasar: perusahaan 50 sampai 7.000+ karyawan per tenant di Indonesi
 
 Tersedia dua opsi deployment dengan codebase yang sama: SaaS multi-tenant untuk perusahaan kecil–menengah, dan dedicated (single-tenant, server sendiri) untuk klien besar atau yang butuh isolasi data penuh. Perbedaannya hanya di konfigurasi deploy, bukan di kode.
 
-AI bersifat opsional. Tanpa paket AI, aplikasi berjalan sebagai ERP HRIS penuh. Paket AI Mini, Pro, dan Enterprise membuka fitur AI secara bertahap.
+AI bersifat opsional. Tanpa AI, aplikasi berjalan sebagai ERP HRIS penuh. Tenant yang ingin memakai AI memasukkan API key LLM miliknya sendiri (BYOK) dan menyalakan fitur AI yang diinginkan di setting.
 
 ## Prinsip desain
 
@@ -33,7 +33,7 @@ AI adalah interface, bukan sumber kebenaran: semua angka dan keputusan final tet
 3. **Permission-aware.** AI berjalan dengan token user yang login, tidak pernah pakai service account berakses penuh.
 4. **Human-in-the-loop untuk aksi tulis.** AI menyiapkan draft, user wajib konfirmasi sebelum submit, approve, atau cancel.
 5. **Semua bisa diaudit.** Setiap tool call AI dicatat: siapa, tool apa, parameter, hasil, dan waktu.
-6. **AI opsional.** Semua fitur ERP berjalan penuh tanpa AI. Kalau paket AI tidak aktif, kuota habis, atau provider LLM gagal, aplikasi otomatis kembali ke mode ERP.
+6. **AI opsional.** Semua fitur ERP berjalan penuh tanpa AI. Kalau fitur AI tidak dinyalakan, limit token habis, atau provider LLM gagal, aplikasi otomatis kembali ke mode ERP.
 
 ## Arsitektur sistem
 
@@ -89,98 +89,103 @@ MVP fokus ke tiga hal yang langsung menunjukkan nilai AI: cuti via chat, validas
 | --- | --- | --- |
 | Core HR | Data karyawan, struktur organisasi, jabatan, grade (effective-dated) | MVP |
 | Leave Management | Tipe cuti, saldo, accrual tahunan, pengajuan, approval berjenjang, kalender tim | MVP |
-| Report builder manual | Pilih kolom, filter, dan export tanpa AI, untuk semua paket termasuk Core | MVP |
-| Paket dan entitlement | Feature flag per tenant, kuota kredit AI, metering, dashboard pemakaian | MVP |
+| Report builder manual | Pilih kolom, filter, dan export tanpa AI, untuk semua tenant | MVP |
+| Setting AI (BYOK) | API key LLM milik tenant, toggle fitur AI, limit token bulanan, pemakaian | MVP |
 | AI Assistant | Tanya saldo, ajukan dan cancel cuti, cek status, tanya aturan perusahaan (RAG) | MVP |
 | AI Form Validation | Soft validation AI di form cuti (hard validation selalu aktif) | MVP |
 | Reporting Agent | Laporan tabel, chart, export Excel, simpan jadi template | MVP |
-| Billing otomatis | Invoice bulanan, top-up kredit, payment gateway | Fase 2 |
+| Billing otomatis | Invoice lisensi bulanan, payment gateway | Fase 2 |
 | Attendance | Clock-in, shift, lembur | Fase 2 |
 | Self-service lain | Reimbursement, request dokumen, update data pribadi | Fase 2 |
 | Payroll | Komponen gaji, PPh21, BPJS, slip gaji | Fase 3 |
 | Talent | Recruitment, performance review | Fase 3 |
 
-## Paket AI dan monetisasi
+## AI opsional dengan API key milik tenant (BYOK)
 
-AI dijual sebagai add-on opsional di atas lisensi ERP: tanpa paket AI semua modul tetap jalan, dan setiap paket membuka fitur AI dengan kuota kredit bulanan.
+Keputusan 2026-09-28 (ADR 011): tidak ada paket AI, kuota kredit, atau billing token. Tenant yang ingin memakai AI memasukkan API key LLM miliknya sendiri, lalu HR admin menyalakan fitur AI yang diinginkan di halaman setting. Biaya token dibayar langsung oleh tenant ke provider, jadi kita tidak menanggung risiko harga token.
 
-Model opt-in ini sekaligus nilai jual. Di 2026 banyak vendor HR memasukkan AI ke paket lalu menaikkan harga perpanjangan 20–37%, sehingga pembeli mulai menanyakan apakah AI benar-benar opsional ([sumber](https://tracefyhr.com/blog/hidden-costs-hr-software-add-on-fees-2026)).
+Model opt-in ini tetap jadi nilai jual. Di 2026 banyak vendor HR memasukkan AI ke paket lalu menaikkan harga perpanjangan 20–37%, sehingga pembeli mulai menanyakan apakah AI benar-benar opsional ([sumber](https://tracefyhr.com/blog/hidden-costs-hr-software-add-on-fees-2026)).
 
-| Fitur | Core | AI Mini | AI Pro | AI Enterprise |
-| --- | --- | --- | --- | --- |
-| Semua modul ERP, hard validation, batch | Ya | Ya | Ya | Ya |
-| Laporan standar + report builder manual | Ya | Ya | Ya | Ya |
-| Chat asisten karyawan (saldo, pengajuan, status) | Tidak | Ya | Ya | Ya |
-| Tanya aturan perusahaan (RAG) | Tidak | Ya | Ya | Ya |
-| Soft validation AI di form | Tidak | Ya | Ya | Ya |
-| Reporting Agent (custom report, chart, template) | Tidak | Tidak | Ya | Ya |
-| Ringkasan tim untuk atasan, rangkuman dry-run batch | Tidak | Tidak | Ya | Ya |
-| Pilihan model dan LLM privat di region pilihan | Tidak | Tidak | Tidak | Ya |
+| Fitur AI (toggle per tenant) | Kode fitur |
+| --- | --- |
+| Chat asisten karyawan (saldo, pengajuan, status) | `ai_assistant` |
+| Tanya aturan perusahaan (RAG) | `ai_policy_qa` |
+| Soft validation AI di form | `ai_form_validation` |
+| Reporting Agent (custom report, chart, template) | `ai_reporting_agent` |
+| Ringkasan tim untuk atasan, rangkuman dry-run batch | `ai_team_summary` |
 
-| Paket | Harga usulan | Kuota kredit per bulan | Biaya LLM terburuk vs harga |
-| --- | --- | --- | --- |
-| Core | Lisensi ERP per karyawan (ditentukan terpisah) | 0 | 0% |
-| AI Mini | $0,12 per karyawan, minimal $10 | 20 × jumlah karyawan, minimal 1.000 | ±50% |
-| AI Pro | $0,30 per karyawan, minimal $30 | 40 × jumlah karyawan, minimal 3.000 | ±40% |
-| AI Enterprise | Kontrak custom | Custom | Tergantung model dan hosting |
+Semua modul ERP, hard validation, batch, laporan standar, dan report builder manual selalu aktif untuk semua tenant.
 
-Top-up kredit $10 per 2.000 kredit. "Biaya terburuk" berarti semua kredit terpakai di jam peak. Semua harga di atas usulan awal dan divalidasi ulang setelah ada data pemakaian nyata.
+Fitur AI aktif untuk tenant hanya kalau semua syarat ini terpenuhi:
 
-Contoh: tenant 7.000 karyawan dengan AI Pro membayar $2.100 per bulan, atau ±Rp5.000 per karyawan (asumsi kurs Rp16.500). HRIS lokal kelas menengah dijual Rp25–50 ribu per karyawan per bulan dan kelas enterprise Rp50 ribu ke atas, jadi AI Pro menambah sekitar 10–20% dari harga lisensi. Vendor lain bahkan menagih custom report Rp1–5 juta per laporan, sementara di AI Pro user membuatnya sendiri ([sumber](https://albatech.id/blog/berapa-biaya-hris-indonesia-2026-panduan-harga)).
+1. AI dinyalakan di server (`AI_ENABLED=true`, kill switch per deployment).
+2. HR admin sudah mengisi API key.
+3. HR admin sudah menyetujui pemrosesan data oleh provider pilihan.
+4. Tes koneksi berhasil.
+5. Fitur di-toggle aktif.
+6. Limit token bulanan (opsional, diatur HR) belum habis.
 
-| Aksi AI | Kredit | Estimasi token | Estimasi biaya (jam peak) |
-| --- | --- | --- | --- |
-| 1 pesan chat (2–3 langkah tool calling) | 1 | ±15.000 input (±60% cache hit) + ±900 output | ±$0,003 |
-| 1 soft validation form | 1 | ±2.000 input + ±150 output | ±$0,001 |
-| 1 custom report (mode thinking) | 10 | ±20.000 input + ±5.000 output | ±$0,01 |
+Ganti key, provider, atau model mewajibkan tes koneksi ulang. Ganti provider juga mewajibkan persetujuan ulang.
 
-Hitungan memakai tarif resmi `deepseek-flash` jam peak: $0,30 per 1 juta token input (cache miss), $0,006 (cache hit), dan $1,20 output. Di luar jam peak semuanya setengah harga ([sumber](https://api-docs.deepseek.com/quick_start/pricing/)). Kredit memisahkan harga jual dari harga token, karena DeepSeek sudah dua kali mengubah skema harga di 2026, jadi rasio kredit bisa disesuaikan tanpa mengubah harga paket.
+| Provider | URL | Catatan |
+| --- | --- | --- |
+| DeepSeek (default) | `https://api.deepseek.com` | Model default `deepseek-flash` |
+| OpenAI | `https://api.openai.com/v1` | Model dipilih tenant |
+| OpenRouter | `https://openrouter.ai/api/v1` | Model dipilih tenant |
+| Custom | URL dari allowlist operator (`AI_ALLOWED_BASE_URLS`) | Misal LLM privat di deployment dedicated |
 
-Jam peak DeepSeek (01:00–04:00 dan 06:00–10:00 UTC, Senin–Jumat) sama dengan 08:00–11:00 dan 13:00–17:00 WIB, persis jam kantor. Chat interaktif hampir selalu kena tarif peak, sedangkan job AI yang bisa ditunda (embedding, laporan terjadwal, rangkuman dry-run) dijadwalkan di luar jam itu untuk hemat 50%.
+Tenant tidak bisa mengisi URL bebas, supaya server tidak bisa diarahkan ke alamat internal (SSRF).
+
+Estimasi pemakaian token untuk membantu tenant memilih provider dan limit:
+
+| Aksi AI | Estimasi token | Estimasi biaya `deepseek-flash` (jam peak) |
+| --- | --- | --- |
+| 1 pesan chat (2–3 langkah tool calling) | ±15.000 input (±60% cache hit) + ±900 output | ±$0,003 |
+| 1 soft validation form | ±2.000 input + ±150 output | ±$0,001 |
+| 1 custom report (mode thinking) | ±20.000 input + ±5.000 output | ±$0,01 |
+
+Hitungan memakai tarif resmi `deepseek-flash` jam peak: $0,30 per 1 juta token input (cache miss), $0,006 (cache hit), dan $1,20 output. Di luar jam peak semuanya setengah harga ([sumber](https://api-docs.deepseek.com/quick_start/pricing/)).
+
+Jam peak DeepSeek (01:00–04:00 dan 06:00–10:00 UTC, Senin–Jumat) sama dengan 08:00–11:00 dan 13:00–17:00 WIB, persis jam kantor. Chat interaktif hampir selalu kena tarif peak, sedangkan job AI yang bisa ditunda (embedding, laporan terjadwal, rangkuman dry-run) dijadwalkan di luar jam itu supaya tagihan tenant lebih hemat.
 
 ```mermaid
 flowchart LR
-  ORC[AI Orchestrator] --> GW[AI Gateway]
-  GW --> ENT{Cek paket<br/>+ kuota kredit}
-  ENT -->|boleh| MASK[Masking<br/>data pribadi]
-  MASK --> P1[DeepSeek API<br/>default]
-  MASK --> P2[Provider<br/>cadangan]
-  MASK --> P3[LLM privat<br/>Enterprise]
-  ENT -->|habis / gagal| FB[Mode ERP<br/>tanpa AI]
-  GW --> MET[(ai_usage<br/>metering)]
+  ORC[AI Orchestrator] --> API[Core API<br/>cek fitur + limit,<br/>ambil key tenant]
+  API --> GW[AI Gateway]
+  GW --> MASK[Masking<br/>data pribadi]
+  MASK --> P1[Provider pilihan tenant<br/>DeepSeek / OpenAI / OpenRouter]
+  MASK --> P3[LLM privat<br/>allowlist operator]
+  API -->|fitur mati / limit habis / gagal| FB[Mode ERP<br/>tanpa AI]
+  API --> MET[(ai_usage<br/>pemakaian)]
 ```
 
 Semua panggilan LLM wajib lewat AI Gateway, tidak ada service lain yang memanggil provider langsung.
 
-- **Entitlement:** paket dicek di backend (dependency FastAPI `require_feature`), di daftar MCP tools, dan di frontend. Menyembunyikan tombol di UI saja tidak cukup.
-- **AI Gateway:** adapter format OpenAI-compatible. DeepSeek menyediakan endpoint format OpenAI dan Anthropic, dengan dukungan tool calls dan JSON output. Bisa memakai LiteLLM atau adapter sendiri.
-- **Metering:** setiap panggilan mencatat tenant, fitur, model, token input/cache/output, peak atau tidak, biaya, dan kredit terpakai.
-- **Kuota:** admin tenant diberi notifikasi di 80%. Di 100% fitur AI berhenti dan aplikasi kembali ke mode ERP, kecuali auto top-up aktif.
-- **Graceful degradation:** provider lambat atau error → circuit breaker → provider cadangan → mode ERP. Form tetap bisa submit dengan hard validation.
+- **Cek fitur:** status fitur AI tenant dicek di backend (dependency FastAPI `require_feature`), di daftar MCP tools, dan di frontend (`GET /me` mengembalikan `ai_features`). Menyembunyikan tombol di UI saja tidak cukup.
+- **API key tenant:** disimpan terenkripsi (Fernet, `AI_SECRET_KEY`), tidak pernah dikembalikan API, log, atau audit. Hanya 4 karakter terakhir yang ditampilkan. Core API mendekripsi key dan mengirimnya per request ke gateway; gateway tidak menyimpan key.
+- **AI Gateway:** adapter format OpenAI-compatible, stateless. Menolak URL provider di luar allowlist. Key dari env gateway hanya dipakai deployment dedicated yang key-nya dikelola operator.
+- **Pemakaian:** setiap panggilan mencatat tenant, fitur, provider, model, dan token input/cache/output di `ai_usage`, plus counter bulanan per fitur. HR melihat pemakaian bulanan di halaman setting AI.
+- **Limit:** opsional per tenant (token input + output per bulan). Kalau habis, fitur AI berhenti dan aplikasi kembali ke mode ERP.
+- **Graceful degradation:** provider lambat atau error → mode ERP. Form tetap bisa submit dengan hard validation.
 - **Prompt cache-friendly:** system prompt dan definisi tool selalu di awal dan tidak berubah per request, supaya kena tarif cache hit.
-- **Dashboard pemakaian:** admin tenant melihat sisa kredit, pemakaian per fitur, dan tren bulanan.
 
 | Tabel | Isi |
 | --- | --- |
-| `plan` | Definisi paket: fitur, kuota per karyawan, harga |
-| `tenant_subscription` | Paket aktif per tenant, periode, auto top-up |
-| `feature_flag` | Override fitur per tenant (misal trial Reporting Agent) |
-| `credit_ledger` | Saldo kredit: alokasi bulanan, top-up, pemakaian |
-| `ai_usage` | Log per panggilan LLM, partisi bulanan |
-| `ai_usage_daily` | Ringkasan harian untuk dashboard dan invoice |
+| `tenant_ai_setting` | Provider, model, API key terenkripsi, status tes, fitur aktif, limit, persetujuan |
+| `ai_usage` | Log per panggilan LLM (append-only), partisi bulanan saat volume besar |
+| `ai_usage_monthly` | Counter per tenant/bulan/fitur untuk cek limit dan tampilan pemakaian |
 
-Kebijakan privasi DeepSeek menyatakan data yang dikumpulkan disimpan di server di Republik Rakyat Tiongkok ([sumber](https://chat.deepseek.com/downloads/DeepSeek%20Privacy%20Policy.html)). Hal ini wajib transparan ke klien dan dimitigasi:
+Tenant memilih sendiri provider-nya, jadi lokasi data mengikuti provider tersebut. Contoh: kebijakan privasi DeepSeek menyatakan data disimpan di server di Republik Rakyat Tiongkok ([sumber](https://chat.deepseek.com/downloads/DeepSeek%20Privacy%20Policy.html)). Hal ini wajib transparan ke klien dan dimitigasi:
 
 - **Data minimal:** hanya field yang dibutuhkan tool yang dikirim. NIK, gaji, dan rekening tidak pernah dikirim. Nama karyawan diganti token sebelum dikirim dan dikembalikan setelah respons.
-- **Opt-in tertulis:** aktivasi paket AI butuh persetujuan admin tenant dan klausul pemrosesan data di kontrak, termasuk transfer data ke luar negeri sesuai UU PDP (perlu cek legal).
-- **LLM privat untuk Enterprise dan dedicated:** model open-weight DeepSeek di-host sendiri atau di penyedia dengan data center pilihan, atau memakai provider lain, sehingga data tidak masuk ke server DeepSeek.
-- **Klien pemerintah atau BUMN:** cek dulu kebijakan mereka soal penyedia AI asing sebelum menawarkan paket AI berbasis DeepSeek API.
+- **Persetujuan tercatat:** HR admin wajib menyetujui pemrosesan data oleh provider pilihan sebelum fitur AI bisa dinyalakan (waktu dan user disimpan). Klausul pemrosesan data dan transfer ke luar negeri sesuai UU PDP tetap perlu dicek legal.
+- **LLM privat untuk dedicated:** model open-weight di-host sendiri atau di penyedia dengan data center pilihan, didaftarkan operator di allowlist.
+- **Klien pemerintah atau BUMN:** arahkan ke provider atau LLM privat yang sesuai kebijakan mereka.
 
 Kualitas tool calling `deepseek-flash` dalam Bahasa Indonesia wajib diuji dengan eval set sebelum go-live, dan AI Gateway memungkinkan ganti model tanpa ubah kode fitur.
 
-- [ ] Berapa harga lisensi Core (tanpa AI) per karyawan?
-- [ ] Tagihan dalam USD atau Rupiah?
-- [ ] Provider cadangan mana yang dipakai kalau DeepSeek bermasalah?
+- [ ] Berapa harga lisensi per karyawan (AI tidak menambah biaya lisensi)?
+- [ ] Perlukah opsi "key dikelola kami" untuk tenant yang tidak punya akun provider (butuh billing, di luar MVP)?
 
 ## AI Assistant dan validasi form
 
@@ -529,9 +534,9 @@ MVP realistis selesai dalam sekitar 12 minggu part-time, sejalan dengan roadmap 
 | Minggu | Fase | Output |
 | --- | --- | --- |
 | 1 | Setup | Monorepo, `CLAUDE.md`, Docker Compose, CI, spec ini masuk folder `docs/` |
-| 2–4 | Core API | Data model + migrasi, API Employee dan Leave, rules engine, framework batch job, entitlement paket, test Pytest |
+| 2–4 | Core API | Data model + migrasi, API Employee dan Leave, rules engine, framework batch job, setting AI (BYOK), test Pytest |
 | 5–6 | Frontend | Form cuti, halaman approval, kalender tim, dashboard saldo |
-| 7–9 | AI Assistant | AI Gateway + metering kredit, MCP server, orchestrator, chat UI streaming, validasi form AI, RAG policy |
+| 7–9 | AI Assistant | AI Gateway + pencatatan pemakaian, MCP server, orchestrator, chat UI streaming, validasi form AI, RAG policy |
 | 10–11 | Reporting Agent | Semantic views, SQL Guard, output tabel/chart/Excel, template |
 | 12 | Hardening | Security review, eval AI, load test simulasi 7.000 karyawan, deploy, demo ke calon klien |
 
@@ -552,8 +557,8 @@ Risiko terbesar adalah AI memberi jawaban atau laporan yang terlihat benar padah
 | Text-to-SQL salah tafsir | Laporan menyesatkan | Semantic views, tampilkan definisi yang dipakai, template tervalidasi |
 | Kebocoran data antar user atau tenant | Pelanggaran privasi, hilang kepercayaan klien | RLS, token user di setiap call, test otorisasi otomatis |
 | Data prompt tersimpan di server LLM luar negeri | Klien menolak AI, isu transfer data lintas negara | Opt-in per tenant, masking data pribadi, opsi LLM privat untuk Enterprise |
-| Harga atau model provider berubah mendadak | Margin paket AI tergerus | Sistem kredit, AI Gateway multi-provider, review rasio kredit tiap bulan |
-| Biaya LLM membengkak | Margin SaaS tergerus | Kuota kredit per paket, AI batch di jam off-peak, prompt cache-friendly, template tanpa LLM |
+| Harga atau model provider berubah mendadak | Tagihan AI tenant naik | Tenant bayar langsung ke provider (BYOK), AI Gateway multi-provider, limit token bulanan per tenant |
+| Biaya LLM membengkak | Tenant enggan menyalakan AI | Limit token per tenant, AI batch di jam off-peak, prompt cache-friendly, template tanpa LLM |
 | Scope creep ke payroll | MVP molor | Kunci scope, payroll baru di Fase 3 |
 
 - [ ] Dijual sebagai SaaS multi-tenant atau di-install per perusahaan (single-tenant)?

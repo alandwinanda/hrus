@@ -174,3 +174,83 @@ async def test_chat_rejects_empty_messages(client: AsyncClient, use_settings: Us
     response = await client.post("/v1/chat", json={"messages": []})
 
     assert response.status_code == 422
+
+
+TENANT_CREDENTIALS = {
+    "provider": "openai",
+    "base_url": "https://api.openai.com/v1/",
+    "model": "model-tenant",
+    "api_key": "sk-tenant-rahasia",
+}
+
+
+async def test_chat_uses_tenant_credentials(
+    client: AsyncClient, use_settings: UseSettings, use_upstream: UseUpstream
+) -> None:
+    """BYOK: key dan model dari request, bukan env. Kredensial tidak ikut diteruskan di body."""
+    use_settings(ai_enabled=True, llm_provider="deepseek", deepseek_api_key="sk-operator")
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["auth"] = request.headers["authorization"]
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json=DEEPSEEK_RESPONSE)
+
+    use_upstream(handler)
+
+    response = await client.post("/v1/chat", json={**CHAT_BODY, "credentials": TENANT_CREDENTIALS})
+
+    assert response.status_code == 200, response.text
+    assert seen["url"] == "https://api.openai.com/v1/chat/completions"
+    assert seen["auth"] == "Bearer sk-tenant-rahasia"
+    assert seen["body"] == {"model": "model-tenant", **CHAT_BODY}
+    assert response.json()["provider"] == "openai"
+    assert "sk-tenant-rahasia" not in response.text
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    ["http://169.254.169.254/latest", "http://backend-1:8000", "https://evil.example/v1"],
+)
+async def test_chat_rejects_base_url_outside_allowlist(
+    client: AsyncClient, use_settings: UseSettings, use_upstream: UseUpstream, base_url: str
+) -> None:
+    use_settings(ai_enabled=True)
+    called: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        called.append(str(request.url))
+        return httpx.Response(200, json=DEEPSEEK_RESPONSE)
+
+    use_upstream(handler)
+    credentials = TENANT_CREDENTIALS | {"base_url": base_url}
+
+    response = await client.post("/v1/chat", json={**CHAT_BODY, "credentials": credentials})
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "base_url_not_allowed"
+    assert called == []
+
+
+async def test_operator_can_allow_private_llm(
+    client: AsyncClient, use_settings: UseSettings, use_upstream: UseUpstream
+) -> None:
+    use_settings(ai_enabled=True, ai_allowed_base_urls="https://llm.internal.example/v1")
+    use_upstream(lambda _: httpx.Response(200, json=DEEPSEEK_RESPONSE))
+    credentials = TENANT_CREDENTIALS | {"base_url": "https://llm.internal.example/v1"}
+
+    response = await client.post("/v1/chat", json={**CHAT_BODY, "credentials": credentials})
+
+    assert response.status_code == 200
+
+
+async def test_tenant_credentials_still_need_ai_enabled(
+    client: AsyncClient, use_settings: UseSettings
+) -> None:
+    use_settings(ai_enabled=False)
+
+    response = await client.post("/v1/chat", json={**CHAT_BODY, "credentials": TENANT_CREDENTIALS})
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "ai_disabled"

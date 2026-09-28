@@ -1,28 +1,33 @@
 from collections.abc import Awaitable, Callable
-from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
-
-from app.core.config import Settings, get_settings
-from app.entitlement.features import Feature
-from app.entitlement.service import is_feature_enabled
+from app.api.deps import CurrentUserDep, SettingsDep, TenantSessionDep
+from app.core.errors import ForbiddenError
+from app.entitlement.features import AI_FEATURES, AiFeature, Feature
+from app.entitlement.service import ai_status
 
 
 def require_feature(feature: Feature) -> Callable[..., Awaitable[None]]:
-    """Dependency FastAPI: tolak request kalau fitur tidak aktif untuk tenant.
+    """Dependency FastAPI: tolak request kalau fitur AI tidak aktif untuk tenant.
 
-    Wajib dipasang di backend untuk setiap endpoint fitur berbayar.
-    Menyembunyikan tombol di UI saja tidak cukup.
+    Wajib dipasang di setiap endpoint fitur AI. Menyembunyikan tombol di UI saja tidak cukup.
+    Fitur ERP selalu lolos.
     """
 
-    async def dependency(settings: Annotated[Settings, Depends(get_settings)]) -> None:
-        if not is_feature_enabled(feature, settings):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "code": "feature_not_enabled",
-                    "message": f"Fitur '{feature}' tidak aktif untuk paket ini.",
-                },
+    async def dependency(
+        user: CurrentUserDep, session: TenantSessionDep, settings: SettingsDep
+    ) -> None:
+        if feature not in AI_FEATURES:
+            return
+        status = await ai_status(session, user.tenant_id, settings)
+        if AiFeature(feature.value) in status.active_features:
+            return
+        if status.status == "limit_reached":
+            raise ForbiddenError(
+                "Limit token AI bulan ini sudah habis. Aplikasi berjalan dalam mode ERP.",
+                code="ai_limit_reached",
             )
+        raise ForbiddenError(
+            f"Fitur AI '{feature}' tidak aktif untuk perusahaan ini.", code="feature_not_enabled"
+        )
 
     return dependency

@@ -1,5 +1,6 @@
 """Model ORM SQLAlchemy. Import semua model di sini supaya terbaca Alembic autogenerate."""
 
+from app.models.ai import AiProvider, AiUsage, AiUsageMonthly, TenantAiSetting
 from app.models.audit import AuditLog
 from app.models.auth import AppUser, RefreshToken, Role, UserRole
 from app.models.base import Base
@@ -35,6 +36,9 @@ from app.models.leave import (
 from app.models.tenant import Tenant
 
 __all__ = [
+    "AiProvider",
+    "AiUsage",
+    "AiUsageMonthly",
     "AppUser",
     "ApprovalStatus",
     "AuditLog",
@@ -64,5 +68,6 @@ __all__ = [
     "RefreshToken",
     "Role",
     "Tenant",
+    "TenantAiSetting",
     "UserRole",
 ]

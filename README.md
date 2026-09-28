@@ -56,5 +56,10 @@ curl http://localhost:8080/api/jobs/runs/<id> -H "Authorization: Bearer <access_
 
 Tenant baru untuk klien: `make create-tenant SLUG=acme NAME="PT Acme" EMAIL=hr@acme.co.id`.
 
-AI default mati (`AI_ENABLED=false`). Untuk mencoba tanpa API key, set `AI_ENABLED=true` dan
-`LLM_PROVIDER=mock` di `.env`.
+AI opsional dan default mati (`AI_ENABLED=false`). Tidak ada paket: tiap tenant memakai API key
+LLM sendiri (ADR 011). Untuk mencoba:
+
+1. Di `.env`: `AI_ENABLED=true` dan `AI_SECRET_KEY` (cara membuatnya ada di `.env.example`).
+2. Login sebagai HR, lalu `PATCH /api/settings/ai` dengan `api_key` dan `consent_accepted: true`.
+3. `POST /api/settings/ai/test`, lalu `PATCH /api/settings/ai` dengan `enabled_features`.
+4. `GET /api/me` menampilkan fitur AI yang aktif di `ai_features`.

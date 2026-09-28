@@ -151,6 +151,7 @@ async def test_me_returns_profile(
         "roles": ["employee", "manager"],
         "employee_id": None,
         "tenant": {"id": str(tenant.id), "slug": tenant.slug, "name": tenant.name},
+        "ai_features": [],  # AI_ENABLED=false di test: mode ERP
     }
 
 

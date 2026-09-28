@@ -40,7 +40,10 @@ class OpenAICompatibleProvider:
         self._client = client
 
     async def chat(self, request: ChatRequest) -> ChatResponse:
-        payload = {"model": self._model, **request.model_dump(exclude_none=True)}
+        payload = {
+            "model": self._model,
+            **request.model_dump(exclude_none=True, exclude={"credentials"}),
+        }
         try:
             response = await self._client.post(
                 self._url,

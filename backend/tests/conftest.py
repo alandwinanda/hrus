@@ -30,6 +30,9 @@ os.environ.update(
         "MIGRATION_DATABASE_URL": MIGRATION_URL,
         "REDIS_URL": os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15"),
         "AI_ENABLED": "false",
+        # Key Fernet khusus test (32 byte "0" di-base64), bukan secret sungguhan.
+        "AI_SECRET_KEY": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=",
+        "AI_ALLOWED_BASE_URLS": "",
         "JWT_SECRET": "test-secret-yang-panjangnya-lebih-dari-32-karakter",
         "COOKIE_SECURE": "false",
         "REFRESH_COOKIE_PATH": "/auth",
@@ -55,6 +58,9 @@ from tests.job_helpers import InlineDispatch
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 BUSINESS_TABLES = (
+    "ai_usage_monthly",
+    "ai_usage",
+    "tenant_ai_setting",
     "job_run_log",
     "job_run_chunk",
     "job_run",
@@ -178,9 +184,15 @@ type AuthHeaders = Callable[..., dict[str, str]]
 def auth_headers() -> AuthHeaders:
     """Header Authorization untuk user dengan role tertentu, tanpa perlu lewat login."""
 
-    def _headers(tenant: Tenant, *roles: Role, employee_id: UUID | None = None) -> dict[str, str]:
+    def _headers(
+        tenant: Tenant,
+        *roles: Role,
+        employee_id: UUID | None = None,
+        user_id: UUID | None = None,
+    ) -> dict[str, str]:
+        """user_id diisi kalau endpoint butuh user yang benar-benar ada (misal /me)."""
         claims = AccessClaims(
-            user_id=uuid4(),
+            user_id=user_id or uuid4(),
             tenant_id=tenant.id,
             roles=frozenset(roles or (Role.EMPLOYEE,)),
             employee_id=employee_id,

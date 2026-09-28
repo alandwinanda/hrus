@@ -11,10 +11,11 @@ from ai_gateway.logging import get_logger
 from ai_gateway.providers import (
     ChatProvider,
     ProviderError,
+    ProviderNotAllowedError,
     ProviderNotConfiguredError,
     build_provider,
 )
-from ai_gateway.schemas import ChatRequest, ChatResponse
+from ai_gateway.schemas import ChatRequest, ChatResponse, ProviderCredentials
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -27,9 +28,11 @@ def get_http_client() -> httpx.AsyncClient:
     return httpx.AsyncClient()
 
 
+HttpClientDep = Annotated[httpx.AsyncClient, Depends(get_http_client)]
+
+
 def get_provider(
-    settings: SettingsDep,
-    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
+    settings: Settings, client: httpx.AsyncClient, credentials: ProviderCredentials | None
 ) -> ChatProvider:
     if not settings.ai_enabled:
         raise HTTPException(
@@ -37,7 +40,12 @@ def get_provider(
             detail={"code": "ai_disabled", "message": "AI tidak aktif, gunakan mode ERP."},
         )
     try:
-        return build_provider(settings, client)
+        return build_provider(settings, client, credentials)
+    except ProviderNotAllowedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "base_url_not_allowed", "message": str(exc)},
+        ) from exc
     except ProviderNotConfiguredError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -69,11 +77,13 @@ async def ready(settings: SettingsDep) -> ReadinessResponse:
 
 
 @router.post("/v1/chat", tags=["chat"])
-async def chat(
-    body: ChatRequest,
-    provider: Annotated[ChatProvider, Depends(get_provider)],
-) -> ChatResponse:
-    """Teruskan chat ke provider LLM. Isi pesan tidak pernah ditulis ke log."""
+async def chat(body: ChatRequest, settings: SettingsDep, client: HttpClientDep) -> ChatResponse:
+    """Teruskan chat ke provider LLM. Isi pesan dan API key tidak pernah ditulis ke log.
+
+    `credentials` diisi Core API dengan API key milik tenant (ADR 011). Tanpa itu, gateway
+    memakai konfigurasi env (deployment dedicated).
+    """
+    provider = get_provider(settings, client, body.credentials)
     started = time.perf_counter()
     try:
         result = await provider.chat(body)

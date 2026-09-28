@@ -1,8 +1,18 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 Role = Literal["system", "user", "assistant", "tool"]
+
+
+class ProviderCredentials(BaseModel):
+    """Kredensial milik tenant (ADR 011), dikirim Core API per request. Tidak pernah di-log,
+    tidak disimpan, dan tidak ikut diteruskan ke provider selain sebagai header Authorization."""
+
+    provider: str = Field(min_length=1, max_length=32)
+    base_url: str = Field(min_length=8, max_length=255)
+    model: str = Field(min_length=1, max_length=100)
+    api_key: SecretStr = Field(min_length=1, max_length=500)
 
 
 class ChatMessage(BaseModel):
@@ -22,6 +32,7 @@ class ChatRequest(BaseModel):
     response_format: dict[str, Any] | None = None
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, gt=0)
+    credentials: ProviderCredentials | None = None
 
 
 class Usage(BaseModel):

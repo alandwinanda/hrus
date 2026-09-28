@@ -3,18 +3,18 @@
 ## Project
 
 AI-Native HRIS: HRIS SaaS multi-tenant untuk perusahaan di Indonesia (50–7.000+ karyawan per tenant).
-Semua fitur dibangun API-first, dan UI maupun AI assistant memakai API yang sama. AI adalah add-on
-opsional (paket Core, AI Mini, AI Pro, AI Enterprise), bukan sumber kebenaran.
+Semua fitur dibangun API-first, dan UI maupun AI assistant memakai API yang sama. AI opsional dan
+bukan sumber kebenaran: tanpa paket, tenant memakai API key LLM sendiri (BYOK, ADR 011).
 
-Scope MVP: Core HR, Leave Management, report builder manual, paket dan entitlement, AI Assistant,
+Scope MVP: Core HR, Leave Management, report builder manual, setting AI (BYOK), AI Assistant,
 AI form validation, Reporting Agent. Payroll, attendance, dan fitur lain di luar MVP (lihat SPEC).
 
 **Acuan utama: `docs/SPEC.md`.** Kalau ada yang tidak jelas atau bertentangan dengan file ini,
 ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
-Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log), Core HR, Leave (saldo,
-pengajuan, approval, kalender, accrual, carry-over), dan framework job (`job_run`, chunk, scheduler)
-sudah ada. Berikutnya: entitlement paket. Keputusan teknis: ADR 005–010. Job baru: ADR 009.
+Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log), Core HR, Leave (saldo, pengajuan,
+approval, kalender, accrual, carry-over), framework job, dan setting AI BYOK sudah ada.
+Berikutnya: report builder manual. Keputusan teknis: ADR 005–011. Job baru: ADR 009.
 
 ## Perintah
 
@@ -33,7 +33,7 @@ Test satu service: `cd backend && uv run pytest tests/test_health.py`.
 ```
 backend/       Core API (FastAPI): Core HR, Leave, rules engine, entitlement, endpoint laporan
 worker/        Celery worker + scheduler: accrual, import, laporan besar, notifikasi
-ai-gateway/    Satu-satunya pintu ke LLM provider: routing, masking, kuota kredit, metering
+ai-gateway/    Satu-satunya pintu ke LLM provider: adapter, allowlist URL, masking (stateless)
 orchestrator/  AI agent + tool calling, chat streaming (SSE), Reporting Agent
 mcp-server/    MCP tools, masing-masing pembungkus tipis satu endpoint Core API
 frontend/      Vite + React + TypeScript + Tailwind (form, chat, dashboard)
@@ -75,7 +75,7 @@ Penamaan:
 - Styling hanya Tailwind. Chart pakai Recharts. Chat streaming via SSE.
 - ESLint wajib bersih sebelum commit.
 - Tipe request/response diambil dari OpenAPI Core API, jangan ditulis ulang manual.
-- UI tetap lengkap tanpa AI. Elemen AI tampil berdasarkan entitlement dari API.
+- UI tetap lengkap tanpa AI. Elemen AI tampil hanya kalau ada di `ai_features` dari `GET /me`.
 
 ## Aturan arsitektur
 
@@ -103,16 +103,17 @@ Penamaan:
 
 - Semua fitur ERP wajib jalan penuh dengan `AI_ENABLED=false`. Test suite backend wajib lulus
   di mode ini.
-- Kalau kuota habis atau provider gagal, aplikasi kembali ke mode ERP. Form tetap bisa submit
-  dengan hard validation.
+- Kalau fitur AI mati, limit token habis, atau provider gagal, aplikasi kembali ke mode ERP.
+  Form tetap bisa submit dengan hard validation.
 - Semua panggilan LLM wajib lewat `ai-gateway/`. Service lain dilarang import SDK provider atau
   memanggil API LLM langsung.
-- Default provider DeepSeek (`deepseek-flash`). Provider dan model diatur lewat env var.
+- Provider, model, dan API key per tenant (`tenant_ai_setting`, diatur HR, default `deepseek-flash`).
+  Key terenkripsi (`AI_SECRET_KEY`), tidak pernah dikembalikan, di-log, atau diaudit.
 - Fitur AI dicek dengan dependency `require_feature()` di backend, lalu juga di daftar MCP tools
   dan UI. Menyembunyikan tombol di UI saja tidak cukup.
 - NIK, gaji, dan nomor rekening tidak pernah dikirim ke LLM. Nama karyawan di-mask sebelum
   dikirim dan dikembalikan setelah respons.
-- Setiap panggilan LLM dicatat di `ai_usage` untuk metering kredit.
+- Setiap panggilan LLM dicatat lewat `services/ai_usage.record_usage` (limit token bulanan).
 - System prompt dan definisi tool selalu di awal dan tidak berubah per request (cache-friendly).
 
 ## Aturan performa

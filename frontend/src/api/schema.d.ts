@@ -107,7 +107,7 @@ export interface paths {
         };
         /**
          * Get Me
-         * @description Profil user yang sedang login (MCP tool: get_my_profile).
+         * @description Profil user yang sedang login (MCP tool: get_my_profile), termasuk fitur AI yang aktif.
          */
         get: operations["get_me_me_get"];
         put?: never;
@@ -689,10 +689,199 @@ export interface paths {
         patch: operations["update_job_schedule_jobs_schedules__schedule_id__patch"];
         trace?: never;
     };
+    "/settings/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ai Settings
+         * @description Provider, model, status API key (tanpa key-nya), fitur AI, limit, dan status kesiapan.
+         */
+        get: operations["get_ai_settings_settings_ai_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Ai Settings
+         * @description Ganti key, provider, atau model mewajibkan tes koneksi ulang. Ganti provider juga
+         *     mewajibkan persetujuan ulang. Fitur AI hanya bisa diaktifkan setelah keduanya beres.
+         */
+        patch: operations["update_ai_settings_settings_ai_patch"];
+        trace?: never;
+    };
+    "/settings/ai/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Ai Connection
+         * @description Coba API key lewat ai-gateway (1 token). Gagal tidak dianggap error: lihat `success`.
+         */
+        post: operations["test_ai_connection_settings_ai_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/ai/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ai Usage
+         * @description Pemakaian token per fitur untuk satu bulan (default bulan berjalan).
+         */
+        get: operations["get_ai_usage_settings_ai_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiConnectionTestResult */
+        AiConnectionTestResult: {
+            /** Success */
+            success: boolean;
+            provider: components["schemas"]["AiProvider"];
+            /** Model */
+            model: string;
+            /** Message */
+            message: string;
+            /** Key Verified At */
+            key_verified_at: string | null;
+        };
+        /**
+         * AiFeature
+         * @description Subset Feature yang bisa di-toggle HR di setting AI.
+         * @enum {string}
+         */
+        AiFeature: "ai_assistant" | "ai_policy_qa" | "ai_form_validation" | "ai_reporting_agent" | "ai_team_summary";
+        /**
+         * AiProvider
+         * @enum {string}
+         */
+        AiProvider: "deepseek" | "openai" | "openrouter" | "custom";
+        /**
+         * AiSettingsRead
+         * @description Setting AI tenant. API key tidak pernah dikembalikan, hanya 4 karakter terakhir.
+         */
+        AiSettingsRead: {
+            provider: components["schemas"]["AiProvider"];
+            /** Base Url */
+            base_url: string;
+            /** Model */
+            model: string;
+            /** Api Key Set */
+            api_key_set: boolean;
+            /** Api Key Hint */
+            api_key_hint: string | null;
+            /** Key Verified At */
+            key_verified_at: string | null;
+            /** Consent Accepted At */
+            consent_accepted_at: string | null;
+            /** Consent Accepted By */
+            consent_accepted_by: string | null;
+            /** Enabled Features */
+            enabled_features: components["schemas"]["AiFeature"][];
+            /** Monthly Token Limit */
+            monthly_token_limit: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "ai_disabled" | "no_api_key" | "consent_required" | "key_not_verified" | "limit_reached";
+            /**
+             * Active Features
+             * @description Fitur yang benar-benar bisa dipakai sekarang (toggle + semua syarat).
+             */
+            active_features: components["schemas"]["AiFeature"][];
+            /** Allowed Custom Base Urls */
+            allowed_custom_base_urls: string[];
+        };
+        /**
+         * AiSettingsUpdate
+         * @description Kirim hanya field yang diubah. monthly_token_limit=null berarti tanpa limit.
+         */
+        AiSettingsUpdate: {
+            provider?: components["schemas"]["AiProvider"] | null;
+            /**
+             * Base Url
+             * @description Hanya untuk custom.
+             */
+            base_url?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Api Key */
+            api_key?: string | null;
+            /**
+             * Clear Api Key
+             * @default false
+             */
+            clear_api_key: boolean;
+            /** Enabled Features */
+            enabled_features?: components["schemas"]["AiFeature"][] | null;
+            /** Monthly Token Limit */
+            monthly_token_limit?: number | null;
+            /**
+             * Consent Accepted
+             * @description Persetujuan HR admin bahwa data (tanpa NIK, gaji, rekening; nama di-mask) diproses provider yang dipilih.
+             */
+            consent_accepted?: boolean | null;
+        };
+        /** AiUsageByFeature */
+        AiUsageByFeature: {
+            /** Feature */
+            feature: string;
+            /** Calls */
+            calls: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Cached Input Tokens */
+            cached_input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+        };
+        /** AiUsageSummary */
+        AiUsageSummary: {
+            /** Month */
+            month: string;
+            /** Calls */
+            calls: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Cached Input Tokens */
+            cached_input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+            /** Monthly Token Limit */
+            monthly_token_limit: number | null;
+            /** Limit Reached */
+            limit_reached: boolean;
+            /** By Feature */
+            by_feature: components["schemas"]["AiUsageByFeature"][];
+        };
         /**
          * ApprovalStatus
          * @enum {string}
@@ -1497,6 +1686,8 @@ export interface components {
             /** Employee Id */
             employee_id: string | null;
             tenant: components["schemas"]["TenantSummary"];
+            /** Ai Features */
+            ai_features: string[];
         };
         /** OrgUnitCreate */
         OrgUnitCreate: {
@@ -3179,6 +3370,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobScheduleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ai_settings_settings_ai_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSettingsRead"];
+                };
+            };
+        };
+    };
+    update_ai_settings_settings_ai_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSettingsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_ai_connection_settings_ai_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiConnectionTestResult"];
+                };
+            };
+        };
+    };
+    get_ai_usage_settings_ai_usage_get: {
+        parameters: {
+            query?: {
+                year?: number | null;
+                month?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiUsageSummary"];
                 };
             };
             /** @description Validation Error */
