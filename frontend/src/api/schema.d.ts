@@ -118,10 +118,261 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/org-units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Org Units
+         * @description Struktur organisasi. Bisa dilihat semua role.
+         */
+        get: operations["list_org_units_org_units_get"];
+        put?: never;
+        /** Create Org Unit */
+        post: operations["create_org_unit_org_units_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/org-units/{unit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Org Unit */
+        get: operations["get_org_unit_org_units__unit_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Org Unit */
+        patch: operations["update_org_unit_org_units__unit_id__patch"];
+        trace?: never;
+    };
+    "/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Employees
+         * @description Daftar karyawan beserta jabatan yang berlaku (MCP tool: list_employees, khusus HR).
+         */
+        get: operations["list_employees_employees_get"];
+        put?: never;
+        /** Create Employee */
+        post: operations["create_employee_employees_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/employees/{employee_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Employee
+         * @description HR: semua karyawan. Karyawan: dirinya sendiri. Atasan: bawahan langsung.
+         */
+        get: operations["get_employee_employees__employee_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Employee */
+        patch: operations["update_employee_employees__employee_id__patch"];
+        trace?: never;
+    };
+    "/employees/{employee_id}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jobs
+         * @description Riwayat jabatan, terbaru dulu. HR atau karyawan itu sendiri.
+         */
+        get: operations["list_jobs_employees__employee_id__jobs_get"];
+        put?: never;
+        /**
+         * Add Job
+         * @description Mutasi, promosi, perubahan data, berhenti, atau rehire. Riwayat lama tidak diubah.
+         */
+        post: operations["add_job_employees__employee_id__jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CurrentJob */
+        CurrentJob: {
+            /**
+             * Effdt
+             * Format: date
+             */
+            effdt: string;
+            /** Effseq */
+            effseq: number;
+            action: components["schemas"]["JobAction"];
+            /** Job Title */
+            job_title: string;
+            /** Grade */
+            grade: string;
+            /**
+             * Org Unit Id
+             * Format: uuid
+             */
+            org_unit_id: string;
+            /** Supervisor Employee Id */
+            supervisor_employee_id: string | null;
+            employment_type: components["schemas"]["EmploymentType"];
+            employment_status: components["schemas"]["EmploymentStatus"];
+        };
+        /**
+         * EmployeeCreate
+         * @description Membuat karyawan sekaligus riwayat jabatan pertama (aksi 'hire' per hire_date).
+         */
+        EmployeeCreate: {
+            /** Employee Number */
+            employee_number: string;
+            /** Full Name */
+            full_name: string;
+            /** Work Email */
+            work_email?: string | null;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            job: components["schemas"]["JobFields"];
+        };
+        /**
+         * EmployeeJobCreate
+         * @description Field jabatan yang tidak dikirim diambil dari riwayat yang berlaku per effdt.
+         */
+        EmployeeJobCreate: {
+            /**
+             * Effdt
+             * Format: date
+             */
+            effdt: string;
+            action: components["schemas"]["JobAction"];
+            /** Reason */
+            reason?: string | null;
+            /** Job Title */
+            job_title?: string | null;
+            /** Grade */
+            grade?: string | null;
+            /** Org Unit Id */
+            org_unit_id?: string | null;
+            /** Supervisor Employee Id */
+            supervisor_employee_id?: string | null;
+            employment_type?: components["schemas"]["EmploymentType"] | null;
+        };
+        /** EmployeeJobRead */
+        EmployeeJobRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Effdt
+             * Format: date
+             */
+            effdt: string;
+            /** Effseq */
+            effseq: number;
+            action: components["schemas"]["JobAction"];
+            /** Reason */
+            reason: string | null;
+            /** Job Title */
+            job_title: string;
+            /** Grade */
+            grade: string;
+            /**
+             * Org Unit Id
+             * Format: uuid
+             */
+            org_unit_id: string;
+            /** Supervisor Employee Id */
+            supervisor_employee_id: string | null;
+            employment_type: components["schemas"]["EmploymentType"];
+            employment_status: components["schemas"]["EmploymentStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** EmployeeRead */
+        EmployeeRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Employee Number */
+            employee_number: string;
+            /** Full Name */
+            full_name: string;
+            /** Work Email */
+            work_email: string | null;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "terminated" | "pre_hire";
+            current_job: components["schemas"]["CurrentJob"] | null;
+        };
+        /**
+         * EmployeeUpdate
+         * @description Data dasar saja. Perubahan jabatan/unit/atasan lewat POST /employees/{id}/jobs.
+         */
+        EmployeeUpdate: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Work Email */
+            work_email?: string | null;
+        };
+        /**
+         * EmploymentStatus
+         * @enum {string}
+         */
+        EmploymentStatus: "active" | "terminated";
+        /**
+         * EmploymentType
+         * @enum {string}
+         */
+        EmploymentType: "permanent" | "contract" | "intern" | "daily";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -136,6 +387,27 @@ export interface components {
             status: "ok";
             /** Service */
             service: string;
+        };
+        /**
+         * JobAction
+         * @enum {string}
+         */
+        JobAction: "hire" | "rehire" | "transfer" | "promotion" | "data_change" | "termination";
+        /** JobFields */
+        JobFields: {
+            /** Job Title */
+            job_title: string;
+            /** Grade */
+            grade: string;
+            /**
+             * Org Unit Id
+             * Format: uuid
+             */
+            org_unit_id: string;
+            /** Supervisor Employee Id */
+            supervisor_employee_id?: string | null;
+            /** @default permanent */
+            employment_type: components["schemas"]["EmploymentType"];
         };
         /** LoginRequest */
         LoginRequest: {
@@ -160,6 +432,70 @@ export interface components {
             /** Employee Id */
             employee_id: string | null;
             tenant: components["schemas"]["TenantSummary"];
+        };
+        /** OrgUnitCreate */
+        OrgUnitCreate: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Manager Employee Id */
+            manager_employee_id?: string | null;
+        };
+        /** OrgUnitRead */
+        OrgUnitRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Manager Employee Id */
+            manager_employee_id: string | null;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * OrgUnitUpdate
+         * @description Hanya field yang dikirim yang diubah. Kirim null untuk mengosongkan parent/manager.
+         */
+        OrgUnitUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Manager Employee Id */
+            manager_employee_id?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /** Page[EmployeeJobRead] */
+        Page_EmployeeJobRead_: {
+            /** Items */
+            items: components["schemas"]["EmployeeJobRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[EmployeeRead] */
+        Page_EmployeeRead_: {
+            /** Items */
+            items: components["schemas"]["EmployeeRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** Page[OrgUnitRead] */
+        Page_OrgUnitRead_: {
+            /** Items */
+            items: components["schemas"]["OrgUnitRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** ReadinessChecks */
         ReadinessChecks: {
@@ -390,6 +726,346 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    list_org_units_org_units_get: {
+        parameters: {
+            query?: {
+                include_inactive?: boolean;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_OrgUnitRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_org_unit_org_units_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgUnitCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgUnitRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_unit_org_units__unit_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgUnitRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_org_unit_org_units__unit_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgUnitUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgUnitRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_employees_employees_get: {
+        parameters: {
+            query?: {
+                status?: "active" | "terminated" | "pre_hire" | "all";
+                org_unit_id?: string | null;
+                supervisor_id?: string | null;
+                /** @description Tanggal acuan jabatan. Default: hari ini di zona waktu tenant. */
+                as_of?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_EmployeeRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_employee_employees_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_employee_employees__employee_id__get: {
+        parameters: {
+            query?: {
+                /** @description Tanggal acuan jabatan. Default: hari ini di zona waktu tenant. */
+                as_of?: string | null;
+            };
+            header?: never;
+            path: {
+                employee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_employee_employees__employee_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jobs_employees__employee_id__jobs_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                employee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_EmployeeJobRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_job_employees__employee_id__jobs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeJobCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

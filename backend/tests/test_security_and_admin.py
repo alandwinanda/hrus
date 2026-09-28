@@ -15,7 +15,7 @@ from app.core.security import (
     refresh_token_tenant,
     verify_password,
 )
-from app.models import AppUser, UserRole
+from app.models import AppUser, Employee, EmployeeJob, UserRole
 from app.services import admin
 from tests.conftest import MIGRATION_URL
 
@@ -148,9 +148,30 @@ async def test_seed_dev_is_idempotent(
                 .where(AppUser.tenant_id == tenant.id, AppUser.email == "hr@demo.test")
             )
         )
+        linked = await s.execute(
+            select(AppUser.email, Employee.employee_number)
+            .join(
+                Employee,
+                (Employee.tenant_id == AppUser.tenant_id) & (Employee.id == AppUser.employee_id),
+            )
+            .where(AppUser.tenant_id == tenant.id)
+        )
+        links = {email: number for email, number in linked}
+        karyawan_boss = await s.scalar(
+            select(EmployeeJob.supervisor_employee_id)
+            .join(Employee, Employee.id == EmployeeJob.employee_id)
+            .where(Employee.tenant_id == tenant.id, Employee.employee_number == "D-003")
+        )
+        atasan_id = await s.scalar(
+            select(Employee.id).where(
+                Employee.tenant_id == tenant.id, Employee.employee_number == "D-002"
+            )
+        )
 
     assert emails == sorted(email for email, _ in cli.DEV_USERS)
     assert hr_roles == ["employee", "hr_admin"]
+    assert links == {email: number for number, _, email, *_ in cli.DEV_EMPLOYEES}
+    assert karyawan_boss == atasan_id
 
 
 async def test_seed_dev_refused_in_production() -> None:

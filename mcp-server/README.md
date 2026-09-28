@@ -12,3 +12,8 @@ Spec tool yang sudah ditentukan per modul (diisi lewat skill `/new-module`). Acu
 
 | Tool | Endpoint | Role | Konfirmasi user |
 | --- | --- | --- | --- |
+| `get_my_profile` | `GET /me` | Semua | Tidak |
+| `list_employees` | `GET /employees` | HR | Tidak |
+
+Endpoint Core HR lain (`/org-units`, `POST/PATCH /employees`, `/employees/{id}/jobs`) sengaja
+belum dijadikan MCP tool di MVP: perubahan data master tetap lewat form HR.

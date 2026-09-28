@@ -32,3 +32,12 @@ def test_alembic_upgrade_head_runs() -> None:
     config.attributes["configure_logger"] = False
 
     command.upgrade(config, "head")
+
+
+def test_models_match_migrations() -> None:
+    """Gagal kalau model ORM berubah tanpa migrasi baru (setara `alembic check`)."""
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.attributes["database_url"] = os.environ["MIGRATION_DATABASE_URL"]
+    config.attributes["configure_logger"] = False
+
+    command.check(config)

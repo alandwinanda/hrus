@@ -12,8 +12,8 @@ AI form validation, Reporting Agent. Payroll, attendance, dan fitur lain di luar
 **Acuan utama: `docs/SPEC.md`.** Kalau ada yang tidak jelas atau bertentangan dengan file ini,
 ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
-Status: scaffold + fondasi Core API (auth JWT, role, tenant, RLS, audit_log) sudah ada. Belum ada
-modul bisnis. Keputusan teknis: `docs/decisions/005-scaffold-monorepo.md`, `006-auth-jwt-dan-db-role.md`.
+Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log) dan modul Core HR (org_unit,
+employee, employee_job effective-dated) sudah ada. Berikutnya: Leave. Keputusan teknis: ADR 005–007.
 
 ## Perintah
 
@@ -44,7 +44,7 @@ docs/          SPEC.md dan decisions/ (ADR)
 - `worker/` memakai model dan service dari `backend/`. Logic bisnis tidak boleh diduplikasi.
 - Backend: `app/{api,core,models,schemas,services,rules,jobs,entitlement}`. Pakai helper yang ada:
   `api/deps.py` (`CurrentUserDep`, `TenantSessionDep`, `require_roles`), `core/pagination.py`,
-  `core/tenant.py` (RLS + helper migrasi), `services/audit.py`, `entitlement/deps.py`.
+  `core/tenant.py` (RLS + helper migrasi), `core/errors.py`, `services/audit.py`, `entitlement/`.
 
 ## Konvensi Python
 
@@ -78,8 +78,8 @@ Penamaan:
 
 ## Aturan arsitektur
 
-1. **Multi-tenant.** Semua tabel bisnis punya `tenant_id NOT NULL` + GRANT + RLS policy. Aplikasi
-   konek sebagai user non-superuser (`APP_DB_USER`), tenant context per transaksi dari token JWT.
+1. **Multi-tenant.** Semua tabel bisnis punya `tenant_id NOT NULL` + GRANT + RLS + composite FK
+   `(tenant_id, x_id)`. Aplikasi konek sebagai user non-superuser, tenant context dari token JWT.
    Setiap fitur baru wajib punya test kebocoran antar tenant.
 2. **Satu codebase.** SaaS dan dedicated memakai kode yang sama, bedanya hanya
    `DEPLOYMENT_MODE=saas|dedicated` dan konfigurasi deploy. Dilarang cabang kode per klien.

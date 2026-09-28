@@ -1,13 +1,15 @@
 """RLS diuji memakai user DB aplikasi (non-superuser), sama seperti di production."""
 
+from datetime import date
+
 import pytest
 from sqlalchemy import insert, select, text, update
-from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.security import hash_password
 from app.core.tenant import set_tenant_context
-from app.models import AppUser, AuditLog, Tenant
+from app.models import AppUser, AuditLog, Employee, EmployeeJob, OrgUnit, Tenant
 from tests.conftest import MakeTenant, MakeUser
 
 
@@ -100,3 +102,44 @@ async def test_audit_log_is_append_only(session: AsyncSession, make_tenant: Make
 async def test_tenant_table_is_read_only_for_app(session: AsyncSession) -> None:
     with pytest.raises(DBAPIError, match="permission denied"):
         await session.execute(insert(Tenant).values(slug="liar", name="Liar"))
+
+
+async def test_composite_fk_blocks_cross_tenant_reference_even_for_owner(
+    admin_sessionmaker: async_sessionmaker[AsyncSession], make_tenant: MakeTenant
+) -> None:
+    """Koneksi owner melewati RLS, tapi composite FK (tenant_id, id) tetap menolak."""
+    tenant_a, tenant_b = await make_tenant(), await make_tenant()
+    async with admin_sessionmaker() as s, s.begin():
+        unit_b = OrgUnit(tenant_id=tenant_b.id, code="B", name="Unit B")
+        employee_a = Employee(
+            tenant_id=tenant_a.id, employee_number="A1", full_name="A", hire_date=date(2024, 1, 1)
+        )
+        s.add_all([unit_b, employee_a])
+        await s.flush()
+
+        with pytest.raises(IntegrityError, match="fk_employee_job_org_unit"):
+            async with s.begin_nested():
+                s.add(
+                    EmployeeJob(
+                        tenant_id=tenant_a.id,
+                        employee_id=employee_a.id,
+                        effdt=date(2024, 1, 1),
+                        action="hire",
+                        job_title="Staff",
+                        grade="G1",
+                        org_unit_id=unit_b.id,
+                        employment_type="permanent",
+                        employment_status="active",
+                    )
+                )
+                await s.flush()
+
+
+async def test_employee_job_history_is_append_only(
+    session: AsyncSession, make_tenant: MakeTenant
+) -> None:
+    tenant = await make_tenant()
+    await set_tenant_context(session, tenant.id)
+
+    with pytest.raises(DBAPIError, match="permission denied"):
+        await session.execute(update(EmployeeJob).values(grade="G9"))

@@ -9,7 +9,7 @@ Jalankan `docker compose up -d postgres redis` dulu, atau set TEST_* env var di 
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy.engine import make_url
 
@@ -46,12 +46,22 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import get_settings
 from app.core.db import build_engine, get_sessionmaker
 from app.core.redis import get_redis
+from app.core.security import AccessClaims, create_access_token
 from app.main import app as fastapi_app
 from app.models import AppUser, Role, Tenant
 from app.services import admin
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-BUSINESS_TABLES = ("audit_log", "refresh_token", "user_role", "app_user", "tenant")
+BUSINESS_TABLES = (
+    "audit_log",
+    "refresh_token",
+    "user_role",
+    "app_user",
+    "employee_job",
+    "org_unit",
+    "employee",
+    "tenant",
+)
 TEST_PASSWORD = "password-test-123"
 
 
@@ -138,3 +148,23 @@ def make_user(admin_sessionmaker: async_sessionmaker[AsyncSession]) -> MakeUser:
             return user
 
     return _make
+
+
+type AuthHeaders = Callable[..., dict[str, str]]
+
+
+@pytest.fixture
+def auth_headers() -> AuthHeaders:
+    """Header Authorization untuk user dengan role tertentu, tanpa perlu lewat login."""
+
+    def _headers(tenant: Tenant, *roles: Role, employee_id: UUID | None = None) -> dict[str, str]:
+        claims = AccessClaims(
+            user_id=uuid4(),
+            tenant_id=tenant.id,
+            roles=frozenset(roles or (Role.EMPLOYEE,)),
+            employee_id=employee_id,
+        )
+        token, _ = create_access_token(claims, get_settings())
+        return {"Authorization": f"Bearer {token}"}
+
+    return _headers

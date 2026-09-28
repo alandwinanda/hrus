@@ -118,6 +118,8 @@ jobs:
             | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])")
           curl -fsS http://localhost:8080/api/me -H "Authorization: Bearer $token" \
             | python3 -c "import json, sys; me = json.load(sys.stdin); assert 'hr_admin' in me['roles'], me; print(me)"
+          curl -fsS http://localhost:8080/api/employees -H "Authorization: Bearer $token" \
+            | python3 -c "import json, sys; page = json.load(sys.stdin); assert len(page['items']) == 3, page; print(len(page['items']), 'karyawan')"
       - name: Log service kalau gagal
         if: failure()
         run: docker compose logs --tail=200

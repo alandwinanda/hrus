@@ -4,9 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-from app.api import auth, health, me
+from app.api import auth, employees, health, me, org_units
 from app.core.config import get_settings
 from app.core.db import get_engine
+from app.core.errors import AppError, app_error_handler
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestContextMiddleware
 from app.core.pagination import InvalidCursorError
@@ -45,9 +46,12 @@ def create_app() -> FastAPI:
     app = FastAPI(title="AI-Native HRIS Core API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(InvalidCursorError, invalid_cursor_handler)
+    app.add_exception_handler(AppError, app_error_handler)
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(me.router)
+    app.include_router(org_units.router)
+    app.include_router(employees.router)
     return app
 
 

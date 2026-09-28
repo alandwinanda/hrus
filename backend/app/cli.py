@@ -12,14 +12,20 @@ import asyncio
 import getpass
 import sys
 from collections.abc import Awaitable, Callable
+from datetime import date
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings, get_settings
 from app.core.db import admin_engine
-from app.models import AppUser, Role
-from app.services import admin
+from app.core.security import AccessClaims
+from app.jobs import perf_seed
+from app.models import AppUser, Employee, OrgUnit, Role
+from app.schemas.employee import EmployeeCreate, JobFields
+from app.schemas.org_unit import OrgUnitCreate
+from app.services import admin, employees, org_units
 
 DEV_TENANT_SLUG = "demo"
 DEV_PASSWORD = "demo-password"  # noqa: S105 - hanya untuk data dev, ditolak di production
@@ -28,6 +34,19 @@ DEV_USERS = (
     ("atasan@demo.test", [Role.MANAGER, Role.EMPLOYEE]),
     ("karyawan@demo.test", [Role.EMPLOYEE]),
 )
+# (kode, nama, kode parent)
+DEV_ORG_UNITS = (
+    ("DIREKSI", "Direksi", None),
+    ("HR", "Human Resources", "DIREKSI"),
+    ("ENG", "Engineering", "DIREKSI"),
+)
+# (nomor, nama, email akun, unit, jabatan, grade, nomor atasan)
+DEV_EMPLOYEES = (
+    ("D-001", "Hana Rahmawati", "hr@demo.test", "HR", "HR Manager", "G6", None),
+    ("D-002", "Andi Pratama", "atasan@demo.test", "ENG", "Engineering Manager", "G6", None),
+    ("D-003", "Budi Santoso", "karyawan@demo.test", "ENG", "Software Engineer", "G3", "D-002"),
+)
+DEV_HIRE_DATE = date(2024, 1, 2)
 
 
 async def _in_admin_tx(
@@ -93,6 +112,59 @@ async def create_user(settings: Settings, args: argparse.Namespace) -> None:
     await _in_admin_tx(settings, action)
 
 
+async def _seed_dev_core_hr(session: AsyncSession, tenant_id: UUID) -> None:
+    """Unit organisasi + karyawan demo, lalu tiap akun demo ditautkan ke karyawannya."""
+    users = {
+        user.email: user
+        for user in await session.scalars(select(AppUser).where(AppUser.tenant_id == tenant_id))
+    }
+    hr_user = users["hr@demo.test"]
+    actor = AccessClaims(
+        user_id=hr_user.id,
+        tenant_id=tenant_id,
+        roles=frozenset({Role.HR_ADMIN}),
+        employee_id=None,
+    )
+
+    units = {
+        unit.code: unit.id
+        for unit in await session.scalars(select(OrgUnit).where(OrgUnit.tenant_id == tenant_id))
+    }
+    for code, name, parent in DEV_ORG_UNITS:
+        if code not in units:
+            created = await org_units.create_org_unit(
+                session,
+                actor,
+                OrgUnitCreate(code=code, name=name, parent_id=units.get(parent or "")),
+            )
+            units[code] = created.id
+
+    numbers = {
+        emp.employee_number: emp.id
+        for emp in await session.scalars(select(Employee).where(Employee.tenant_id == tenant_id))
+    }
+    for number, name, email, unit, title, grade, boss in DEV_EMPLOYEES:
+        if number not in numbers:
+            created_emp = await employees.create_employee(
+                session,
+                actor,
+                EmployeeCreate(
+                    employee_number=number,
+                    full_name=name,
+                    work_email=email,
+                    hire_date=DEV_HIRE_DATE,
+                    job=JobFields(
+                        job_title=title,
+                        grade=grade,
+                        org_unit_id=units[unit],
+                        supervisor_employee_id=numbers.get(boss or ""),
+                    ),
+                ),
+            )
+            numbers[number] = created_emp.id
+        users[email].employee_id = numbers[number]
+
+
 async def seed_dev(settings: Settings, _: argparse.Namespace) -> None:
     if settings.app_env == "production":
         raise SystemExit("seed-dev tidak boleh dijalankan di production")
@@ -110,11 +182,44 @@ async def seed_dev(settings: Settings, _: argparse.Namespace) -> None:
                 await admin.create_user(
                     session, tenant_id=tenant.id, email=email, password=DEV_PASSWORD, roles=roles
                 )
+        await _seed_dev_core_hr(session, tenant.id)
 
     await _in_admin_tx(settings, action)
     print(f"Tenant dev '{DEV_TENANT_SLUG}' siap. Password semua user: {DEV_PASSWORD}")
     for email, roles in DEV_USERS:
         print(f"  {email:<22} {', '.join(roles)}")
+
+
+PERF_TENANT_SLUG = "perf"
+
+
+async def seed_perf(settings: Settings, args: argparse.Namespace) -> None:
+    if settings.app_env == "production":
+        raise SystemExit("seed-perf tidak boleh dijalankan di production")
+
+    async def action(session: AsyncSession) -> None:
+        tenant = await admin.get_tenant_by_slug(session, PERF_TENANT_SLUG)
+        if tenant is None:
+            tenant = await admin.create_tenant(
+                session, slug=PERF_TENANT_SLUG, name="PT Uji Performa"
+            )
+        has_data = await session.scalar(
+            select(func.count()).select_from(Employee).where(Employee.tenant_id == tenant.id)
+        )
+        if has_data and not args.reset:
+            print(f"Tenant '{PERF_TENANT_SLUG}' sudah berisi data. Pakai --reset untuk ulang.")
+            return
+        if has_data:
+            await perf_seed.reset_core_hr(session, tenant.id)
+        result = await perf_seed.seed_core_hr(
+            session, tenant.id, employees=args.employees, years=args.years
+        )
+        print(
+            f"Tenant '{PERF_TENANT_SLUG}' ({tenant.id}): {result.org_units} unit, "
+            f"{result.employees} karyawan, {result.jobs} baris riwayat jabatan."
+        )
+
+    await _in_admin_tx(settings, action)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -136,6 +241,11 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--password", help="Kosongkan untuk diminta lewat prompt")
 
     sub.add_parser("seed-dev", help="Tenant demo + user HR, atasan, karyawan (dev saja)")
+
+    p = sub.add_parser("seed-perf", help="Tenant 'perf' untuk uji performa (dev/staging saja)")
+    p.add_argument("--employees", type=int, default=7000)
+    p.add_argument("--years", type=int, default=3)
+    p.add_argument("--reset", action="store_true", help="Hapus lalu buat ulang data tenant perf")
     return parser
 
 
@@ -144,6 +254,7 @@ COMMANDS: dict[str, Callable[[Settings, argparse.Namespace], Awaitable[None]]] =
     "create-tenant": create_tenant,
     "create-user": create_user,
     "seed-dev": seed_dev,
+    "seed-perf": seed_perf,
 }
 
 

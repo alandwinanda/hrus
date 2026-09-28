@@ -21,16 +21,21 @@ Helper yang sudah ada, pakai ini dan jangan bikin versi baru:
 | Keyset pagination | `app.core.pagination.paginate`, `app.api.pagination.PageParamsDep` |
 | Response list | `app.schemas.common.Page[T]` |
 | Audit | `app.services.audit.record_audit` |
+| Error bisnis (404/409/422) | `app.core.errors`: `NotFoundError`, `ConflictError`, `RuleViolationError` |
+| Tanggal hari ini per tenant | `app.services.tenant.tenant_today` |
 | Helper migrasi | `app.core.tenant`: `rls_statements`, `grant_statement` |
 | Cek paket/fitur | `app.entitlement.deps.require_feature`, `app.entitlement.features.Feature` |
 
-Contoh modul yang sudah mengikuti pola ini: `app/api/me.py`, `app/services/auth.py`,
-`tests/test_rls.py` (isolasi tenant), `tests/test_auth.py`.
+Contoh modul lengkap yang mengikuti pola ini: Core HR (`app/models/core_hr.py`,
+`app/services/employees.py`, `app/api/employees.py`, `tests/test_employees.py`). Lihat juga ADR 007.
 
 ## 1. Model (`backend/app/models/<modul>.py`)
 
 - [ ] Pakai `TenantMixin` (kolom `tenant_id` UUID `NOT NULL` + FK ke `tenant`) di setiap tabel.
 - [ ] Composite index diawali `tenant_id`, sesuai pola query (misal `(tenant_id, employee_id, start_date)`).
+- [ ] Relasi ke tabel tenant lain pakai composite FK `(tenant_id, x_id) -> x(tenant_id, id)`, dan tabel
+      yang dirujuk punya `UniqueConstraint("tenant_id", "id")`. Contoh di `app/models/core_hr.py`.
+- [ ] Setelah migrasi, `alembic check` harus bersih (test `test_models_match_migrations` menjaganya).
 - [ ] Data effective-dated (seperti `employee_job`) memakai `effdt` + `effseq`, tidak menimpa riwayat.
 - [ ] Import model di `app/models/__init__.py` supaya terbaca Alembic.
 - [ ] Migrasi baru: `cd backend && uv run alembic revision --autogenerate -m "<pesan>"`, lalu cek hasilnya.
@@ -62,8 +67,11 @@ Contoh modul yang sudah mengikuti pola ini: `app/api/me.py`, `app/services/auth.
 - [ ] List memakai `paginate()`. Kolom sort NOT NULL, diakhiri primary key. Dilarang `OFFSET`.
 - [ ] List transaksi default tahun berjalan, histori lama hanya lewat filter eksplisit.
 - [ ] Pilih kolom yang dibutuhkan (tanpa `SELECT *`), pakai `selectinload`/`joinedload` (tanpa N+1).
-- [ ] Hard validation lewat rules engine (`app/rules/`). Angka bisnis (saldo, jumlah hari)
-      dihitung di sini, tidak pernah oleh LLM.
+- [ ] Hard validation lewat rules engine (`app/rules/`, fungsi murni yang melempar
+      `RuleViolationError` dengan `code` spesifik). Angka bisnis (saldo, jumlah hari) dihitung di
+      sini, tidak pernah oleh LLM.
+- [ ] Data tidak ditemukan atau tidak boleh dilihat → `NotFoundError` (bukan 403), duplikat →
+      `ConflictError`. Router tidak perlu try/except.
 - [ ] Saldo disimpan dan di-update di transaksi yang sama, bukan dihitung ulang dari histori.
 - [ ] Proses berat (import massal, hitung ulang massal) jadi job Celery, bukan di request.
 - [ ] Perubahan data dicatat dengan `record_audit()` di transaksi yang sama (tanpa secret).
@@ -100,8 +108,8 @@ Jalankan `make test` dan `make lint` sampai hijau.
 - [ ] Jalankan `EXPLAIN (ANALYZE, BUFFERS) <sql>` di data seed 3 tahun
       (`make seed-perf`, lalu `docker compose exec postgres psql -U hrus -d hrus`).
 - [ ] Pastikan memakai index (Index Scan / Index Only Scan), bukan Seq Scan di tabel besar.
-- [ ] Selama `make seed-perf` belum diimplementasi: isi data dummy secukupnya, dan tulis di
-      ringkasan ke user bahwa cek di data 3 tahun masih tertunda.
+- [ ] `make seed-perf` baru mengisi data Core HR. Kalau modul butuh data lain (misal cuti),
+      tambahkan generator-nya di `app/jobs/perf_seed.py` dulu.
 
 ## 7. MCP tool
 

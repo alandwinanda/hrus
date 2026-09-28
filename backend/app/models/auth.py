@@ -2,7 +2,17 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, func, true
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    func,
+    text,
+    true,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -18,12 +28,24 @@ class AppUser(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "app_user"
     __table_args__ = (
         Index("uq_app_user_tenant_id_email", "tenant_id", "email", unique=True),
+        # Satu karyawan maksimal punya satu akun login.
+        Index(
+            "uq_app_user_tenant_id_employee_id",
+            "tenant_id",
+            "employee_id",
+            unique=True,
+            postgresql_where=text("employee_id IS NOT NULL"),
+        ),
         CheckConstraint("email = lower(email)", name="email_lowercase"),
+        ForeignKeyConstraint(
+            ["tenant_id", "employee_id"],
+            ["employee.tenant_id", "employee.id"],
+            name="fk_app_user_employee",
+        ),
     )
 
     email: Mapped[str] = mapped_column(String(254))
     password_hash: Mapped[str] = mapped_column(String(255))
-    # FK ke employee ditambahkan saat tabel employee dibuat.
     employee_id: Mapped[UUID | None]
     is_active: Mapped[bool] = mapped_column(server_default=true())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
