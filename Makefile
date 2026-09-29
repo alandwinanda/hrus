@@ -58,7 +58,7 @@ seed-dev: ## Tenant "demo" + user HR, atasan, karyawan (password: demo-password)
 create-tenant: ## Tenant baru. Contoh: make create-tenant SLUG=acme NAME="PT Acme" EMAIL=hr@acme.co.id
 	$(COMPOSE) exec backend-1 python -m app.cli create-tenant --slug "$(SLUG)" --name "$(NAME)" --admin-email "$(EMAIL)"
 
-seed-perf: ## Tenant "perf": 7.000 karyawan x 3 tahun riwayat (Core HR). ARGS=--reset untuk ulang
+seed-perf: ## Tenant "perf": 7.000 karyawan x 3 tahun (Core HR + cuti). ARGS=--reset untuk ulang
 	$(COMPOSE) exec backend-1 python -m app.cli seed-perf $(ARGS)
 
 openapi: ## Generate tipe TypeScript frontend dari OpenAPI backend

@@ -14,7 +14,7 @@ ikuti SPEC dan tanyakan dulu sebelum mengubah desain.
 
 Status: fondasi Core API (auth JWT, role, tenant, RLS, audit_log), Core HR, Leave (saldo, pengajuan,
 approval, kalender, accrual, carry-over), framework job, dan setting AI BYOK sudah ada.
-Berikutnya: report builder manual. Keputusan teknis: ADR 005–011. Job baru: ADR 009.
+Sedang dikerjakan: report builder (ADR 012, test belum): lihat `docs/HANDOFF.md`. ADR 005–012.
 
 ## Perintah
 
@@ -43,7 +43,7 @@ docs/          SPEC.md dan decisions/ (ADR)
 
 - Setiap service punya Dockerfile, dependency (uv, `pyproject.toml`), dan test sendiri.
 - `worker/` memakai model dan service dari `backend/`. Logic bisnis tidak boleh diduplikasi.
-- Backend: `app/{api,core,models,schemas,services,rules,jobs,entitlement}`. Pakai helper yang ada:
+- Backend: `app/{api,core,models,schemas,services,rules,jobs,entitlement,reports}`. Pakai helper:
   `api/deps.py` (`CurrentUserDep`, `TenantSessionDep`, `require_roles`), `core/pagination.py`,
   `core/tenant.py` (RLS + helper migrasi), `core/errors.py`, `services/audit.py`, `entitlement/`.
 

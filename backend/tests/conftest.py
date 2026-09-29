@@ -58,6 +58,7 @@ from tests.job_helpers import InlineDispatch
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 BUSINESS_TABLES = (
+    "report_template",
     "ai_usage_monthly",
     "ai_usage",
     "tenant_ai_setting",

@@ -14,6 +14,7 @@ from app.api import (
     leave_config,
     me,
     org_units,
+    reports,
 )
 from app.core.config import get_settings
 from app.core.db import get_engine
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(leave.router)
     app.include_router(jobs.router)
     app.include_router(ai_settings.router)
+    app.include_router(reports.router)
     return app
 
 

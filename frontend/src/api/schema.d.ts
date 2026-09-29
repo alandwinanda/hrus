@@ -754,6 +754,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Report Datasets
+         * @description Dataset, kolom (label, tipe, deskripsi), operator filter, dan agregat yang tersedia.
+         */
+        get: operations["list_report_datasets_reports_datasets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Report
+         * @description MCP tool: run_report. Preview maksimal 500 baris; `definition` menjelaskan filter,
+         *     periode, dan agregasi yang dipakai.
+         */
+        post: operations["run_report_reports_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Report
+         * @description Download CSV atau Excel (maksimal 10.000 baris). Setiap export dicatat di audit.
+         */
+        post: operations["export_report_reports_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Templates */
+        get: operations["list_report_templates_reports_templates_get"];
+        put?: never;
+        /**
+         * Save Report Template
+         * @description MCP tool: save_report_template (wajib konfirmasi user). Laporan disimpan sebagai
+         *     spesifikasi, jadi dijalankan ulang tanpa LLM dan hasilnya konsisten.
+         */
+        post: operations["save_report_template_reports_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Template */
+        get: operations["get_report_template_reports_templates__template_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Report Template */
+        delete: operations["delete_report_template_reports_templates__template_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Report Template */
+        patch: operations["update_report_template_reports_templates__template_id__patch"];
+        trace?: never;
+    };
+    "/reports/templates/{template_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Report Template */
+        post: operations["run_report_template_reports_templates__template_id__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/templates/{template_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Report Template */
+        get: operations["export_report_template_reports_templates__template_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -921,6 +1057,11 @@ export interface components {
          * @enum {string}
          */
         ChunkStatus: "pending" | "success" | "failed" | "cancelled";
+        /**
+         * ColumnType
+         * @enum {string}
+         */
+        ColumnType: "text" | "enum" | "number" | "date" | "datetime" | "boolean";
         /** CurrentJob */
         CurrentJob: {
             /**
@@ -1809,6 +1950,13 @@ export interface components {
             /** Next Cursor */
             next_cursor?: string | null;
         };
+        /** Page[ReportTemplateRead] */
+        Page_ReportTemplateRead_: {
+            /** Items */
+            items: components["schemas"]["ReportTemplateRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
         /** Page[TeamCalendarItem] */
         Page_TeamCalendarItem_: {
             /** Items */
@@ -1837,6 +1985,173 @@ export interface components {
              */
             status: "ready" | "not_ready";
             checks: components["schemas"]["ReadinessChecks"];
+        };
+        /** ReportAggregate */
+        ReportAggregate: {
+            /**
+             * Func
+             * @enum {string}
+             */
+            func: "count" | "count_distinct" | "sum" | "avg" | "min" | "max";
+            /**
+             * Column
+             * @description Kosong = count baris.
+             */
+            column?: string | null;
+        };
+        /** ReportColumnRead */
+        ReportColumnRead: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            type: components["schemas"]["ColumnType"];
+            /** Description */
+            description: string;
+            /** Enum Values */
+            enum_values?: {
+                [key: string]: string;
+            } | null;
+            /** Operators */
+            operators: string[];
+            /** Aggregates */
+            aggregates: string[];
+        };
+        /** ReportDatasetRead */
+        ReportDatasetRead: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Default Period Column */
+            default_period_column: string | null;
+            /** Columns */
+            columns: components["schemas"]["ReportColumnRead"][];
+        };
+        /** ReportFilter */
+        ReportFilter: {
+            /** Column */
+            column: string;
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between" | "in" | "not_in" | "contains" | "starts_with" | "is_null" | "is_not_null";
+            /**
+             * Value
+             * @description Satu nilai, list untuk in/not_in, [dari, sampai] untuk between, kosong untuk is_null.
+             */
+            value?: unknown;
+        };
+        /**
+         * ReportQuery
+         * @description Spesifikasi laporan (ADR 012). Dengan `aggregates`, baris dikelompokkan per `columns`.
+         */
+        ReportQuery: {
+            /** Dataset */
+            dataset: string;
+            /** Columns */
+            columns?: string[];
+            /** Filters */
+            filters?: components["schemas"]["ReportFilter"][];
+            /** Aggregates */
+            aggregates?: components["schemas"]["ReportAggregate"][];
+            /** Sort */
+            sort?: components["schemas"]["ReportSort"][];
+            /**
+             * Limit
+             * @default 500
+             */
+            limit: number;
+        };
+        /** ReportResult */
+        ReportResult: {
+            /** Columns */
+            columns: components["schemas"]["ReportResultColumn"][];
+            /** Rows */
+            rows: unknown[][];
+            /** Row Count */
+            row_count: number;
+            /**
+             * Truncated
+             * @description True kalau baris lebih banyak dari limit.
+             */
+            truncated: boolean;
+            /**
+             * Definition
+             * @description Definisi yang dipakai (dataset, filter, periode, agregasi) untuk dicek user.
+             */
+            definition: string[];
+        };
+        /** ReportResultColumn */
+        ReportResultColumn: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            type: components["schemas"]["ColumnType"];
+        };
+        /** ReportSort */
+        ReportSort: {
+            /**
+             * Column
+             * @description Kolom yang dipilih, atau key agregat.
+             */
+            column: string;
+            /**
+             * Direction
+             * @default asc
+             * @enum {string}
+             */
+            direction: "asc" | "desc";
+        };
+        /** ReportTemplateCreate */
+        ReportTemplateCreate: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            query: components["schemas"]["ReportQuery"];
+        };
+        /** ReportTemplateRead */
+        ReportTemplateRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            query: components["schemas"]["ReportQuery"];
+            /**
+             * Created By User Id
+             * Format: uuid
+             */
+            created_by_user_id: string;
+            /** Updated By User Id */
+            updated_by_user_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ReportTemplateUpdate */
+        ReportTemplateUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            query?: components["schemas"]["ReportQuery"] | null;
         };
         /** RuleMessage */
         RuleMessage: {
@@ -3476,6 +3791,316 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AiUsageSummary"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_report_datasets_reports_datasets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDatasetRead"][];
+                };
+            };
+        };
+    };
+    run_report_reports_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_report_reports_export_post: {
+        parameters: {
+            query?: {
+                format?: "csv" | "xlsx";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_report_templates_reports_templates_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportTemplateRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_report_template_reports_templates_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_report_template_reports_templates__template_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_report_template_reports_templates__template_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_report_template_reports_templates__template_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportTemplateRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_report_template_reports_templates__template_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_report_template_reports_templates__template_id__export_get: {
+        parameters: {
+            query?: {
+                format?: "csv" | "xlsx";
+            };
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

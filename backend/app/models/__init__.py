@@ -33,6 +33,7 @@ from app.models.leave import (
     LeaveRequestStatus,
     LeaveType,
 )
+from app.models.reports import ReportTemplate
 from app.models.tenant import Tenant
 
 __all__ = [
@@ -66,6 +67,7 @@ __all__ = [
     "LeaveType",
     "OrgUnit",
     "RefreshToken",
+    "ReportTemplate",
     "Role",
     "Tenant",
     "TenantAiSetting",
